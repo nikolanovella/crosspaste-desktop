@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>com.crosspaste.workbench.bluetooth</string>
+  <key>CFBundleName</key><string>CrossPaste Bluetooth</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>Connect your paired Mac and Windows PC for CrossPaste clipboard synchronization without Wi-Fi.</string>
+  <key>NSBluetoothPeripheralUsageDescription</key><string>Connect your paired Mac and Windows PC for CrossPaste clipboard synchronization without Wi-Fi.</string>
+</dict></plist>

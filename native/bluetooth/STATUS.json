@@ -1,0 +1,12 @@
+{
+  "status": "Experimental transport foundation; not yet connected to the application UI or shipped as working Bluetooth sync.",
+  "serviceUuid": "7c028c61-7c9a-4b1a-a8cb-258b58b3e0ed",
+  "platforms": {
+    "Windows": "Windowless native RFCOMM connector; requests authenticated and encrypted Bluetooth link; no drivers or console helper. Built locally with static C++ runtime; pure address/service self-test passes.",
+    "macOS": "Transient RFCOMM service, accepts OS-paired peers only; permission usage text embedded. Compile verification is pending CI. Actual listen/connect is never run by CI self-tests."
+  },
+  "relay": "A bounded, credit-controlled multiplexer carries both devices' normal application connections across one byte stream. Local listeners bind only 127.0.0.1; remote opens can target only the configured local CrossPaste port. No arbitrary destination proxy.",
+  "trust": "The transport handshake only checks framing/version/role. Existing CrossPaste pairing and authenticated/encrypted requests must remain above it. Native Bluetooth pairing/permissions are not automated.",
+  "tests": "Three framing checks and three real-loopback integration checks pass on Windows, including 12 simultaneous bidirectional requests larger than the credit window, half-close handling, disconnect cleanup, and same-role rejection. These do not prove a real Bluetooth link.",
+  "remaining": ["macOS native compilation and runtime verification", "native-process lifecycle and packaging integration", "application endpoint routing and device UI integration", "real paired Windows-Mac test with Wi-Fi unavailable", "reconnect and transfer timeout policy"]
+}

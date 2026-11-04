@@ -116,6 +116,14 @@ is local-only, rejects arbitrary page names, and is unavailable in headless mode
 Bluetooth transport is **not implemented**. LAN discovery/sync remains the only
 implemented connection path in this preview; no Bluetooth switch claims otherwise.
 
+An experimental transport foundation now lives in `native/bluetooth/` and
+`com.crosspaste.transport.bluetooth`. It has separate, OS-named Windows/macOS
+adapters and a shared bounded, bidirectional relay. Windows adapter self-checks
+and six framing/relay checks pass locally. macOS native compilation is gated in
+CI. This code is not yet connected to the device UI, and no radio listener or
+connection starts automatically. Physical Bluetooth synchronization, routing,
+reconnect, and permission handling still require completion and verification.
+
 ## Validation
 
 Run the focused regression suite:
