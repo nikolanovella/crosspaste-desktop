@@ -21,7 +21,7 @@ struct DevicesView: View {
                     Label("This iPhone", systemImage: "iphone")
                     if let nearbyDevice {
                         Label(nearbyDevice.name, systemImage: "desktopcomputer")
-                        Text("Found CrossPaste on \(nearbyDevice.address):\(nearbyDevice.port)")
+                        Text("Found CrossPaste v\(nearbyDevice.version) on \(nearbyDevice.address):\(nearbyDevice.port)")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Text("Device found. Pairing and clipboard sync are not connected in this first build yet.")
@@ -123,6 +123,14 @@ struct CrossPasteEndpoint {
     let name: String
     let address: String
     let port: Int
+    let version: Int
+
+    init(name: String, address: String, port: Int, version: Int = 0) {
+        self.name = name
+        self.address = address
+        self.port = port
+        self.version = version
+    }
 
     static func discover(address: String, port: Int) async throws -> CrossPasteEndpoint {
         guard let url = URL(string: "http://\(address):\(port)/sync/syncInfo") else {
@@ -130,6 +138,15 @@ struct CrossPasteEndpoint {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = 5
+        let (versionData, versionResponse) = try await URLSession.shared.data(for: request)
+        guard let versionResponse = versionResponse as? HTTPURLResponse,
+              (200..<300).contains(versionResponse.statusCode),
+              let version = Int(String(decoding: versionData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw ConnectionError.notCrossPaste
+        }
+        guard version == 3 else { throw ConnectionError.incompatibleVersion(version) }
+
+        request.url = URL(string: "http://\(address):\(port)/sync/syncInfo")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
             throw ConnectionError.notCrossPaste
@@ -141,18 +158,20 @@ struct CrossPasteEndpoint {
               !instanceId.isEmpty else {
             throw ConnectionError.notCrossPaste
         }
-        return CrossPasteEndpoint(name: deviceName, address: address, port: port)
+        return CrossPasteEndpoint(name: deviceName, address: address, port: port, version: version)
     }
 }
 
 enum ConnectionError: LocalizedError {
     case invalidAddress
     case notCrossPaste
+    case incompatibleVersion(Int)
 
     var errorDescription: String? {
         switch self {
         case .invalidAddress: "Enter a valid IP address and port."
         case .notCrossPaste: "Could not find a CrossPaste device at that address. Check the IP, port, and firewall."
+        case .incompatibleVersion(let version): "This device uses protocol version \(version). This iPhone build supports version 3."
         }
     }
 }
