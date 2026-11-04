@@ -7,6 +7,7 @@ import com.crosspaste.notification.Message
 import com.crosspaste.notification.MessageType
 import com.crosspaste.notification.NotificationManager
 import com.crosspaste.platform.Platform
+import com.crosspaste.platform.macos.api.MacosApi
 import com.crosspaste.sound.SoundService
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -15,6 +16,10 @@ class DesktopNotificationManager(
     copywriter: GlobalCopywriter,
     private val platform: Platform,
     private val soundService: SoundService,
+    // Posts to macOS Notification Center; false when unavailable to this process
+    private val postMacosNotification: (title: String, body: String) -> Boolean = { title, body ->
+        MacosApi.INSTANCE.postUserNotification(title, body) != 0
+    },
 ) : NotificationManager(copywriter) {
 
     val idGenerator = AtomicInteger(0)
@@ -28,6 +33,8 @@ class DesktopNotificationManager(
             pushNotification(message)
         } else if (platform.isLinux()) {
             pushNotification(message)
+        } else if (platform.isMacos()) {
+            notifyMacos(message)
         } else {
             notifyTray(message)
         }
@@ -35,6 +42,12 @@ class DesktopNotificationManager(
             soundService.errorSound()
         } else if (message.messageType == MessageType.Success) {
             soundService.successSound()
+        }
+    }
+
+    private fun notifyMacos(message: Message) {
+        if (!postMacosNotification(message.title, message.message ?: "")) {
+            pushNotification(message)
         }
     }
 

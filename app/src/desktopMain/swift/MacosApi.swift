@@ -6,6 +6,7 @@ import ImageIO
 import Network
 import QuickLookThumbnailing
 import Security
+import UserNotifications
 
 @_cdecl("getPasteboardChangeCount")
 public func getPasteboardChangeCount(currentChangeCount: Int,
@@ -849,4 +850,40 @@ public func stopNetworkStateMonitor() {
         networkPathMonitor = nil
         networkStateCallback = nil
     }
+}
+
+// MARK: - User notifications
+
+// Shows banners even while CrossPaste is the active app; macOS hides them otherwise
+private class ForegroundNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list])
+    }
+}
+
+private let foregroundNotificationDelegate = ForegroundNotificationDelegate()
+
+/// Posts a notification to Notification Center, asking for permission on first use.
+/// Returns 0 when the process has no bundle identifier (e.g. a development run from
+/// a bare java launcher), where UNUserNotificationCenter is unavailable; the caller
+/// then shows the message another way.
+@_cdecl("postUserNotification")
+public func postUserNotification(title: UnsafePointer<CChar>, body: UnsafePointer<CChar>) -> Int32 {
+    guard Bundle.main.bundleIdentifier != nil else { return 0 }
+
+    let content = UNMutableNotificationContent()
+    content.title = String(cString: title)
+    content.body = String(cString: body)
+
+    let center = UNUserNotificationCenter.current()
+    if center.delegate == nil {
+        center.delegate = foregroundNotificationDelegate
+    }
+    center.requestAuthorization(options: [.alert]) { granted, _ in
+        guard granted else { return }
+        center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+    return 1
 }
