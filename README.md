@@ -1,3 +1,11 @@
+> **Nikola's CrossPaste fork** — Windows–Mac clipboard customization workspace.
+>
+> [Start here](FORK.md) · [Code map](doc/fork/CODE-MAP.md) · [Build and test](doc/fork/DEVELOPMENT.md) · [Official app downloads](https://crosspaste.com/en/download)
+>
+> Initial cleanup is documentation-only. App behavior is unchanged, and this fork has no custom release binaries yet. The original project overview follows below.
+
+---
+
 <div align="center">
    <img src="doc/en/marketing.webp" width="986px" height="518px" alt="poster" />
    <h1>CrossPaste: Universal Pasteboard Across Devices</h1>
