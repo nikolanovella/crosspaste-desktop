@@ -22,6 +22,26 @@ with events through relays and are verified again after restart. This does not
 automatically establish membership: a key provided by the event itself is never
 accepted as evidence of trust.
 
+`ClipboardPeerAuthentication` authenticates requests using the existing paired
+ECDH-derived message-authentication key. Proofs bind the source, target, clipboard,
+operation, body and one-use challenge; successful verification consumes the
+challenge. Replies use a separate domain and include a SHA-256 digest of the exact
+request. A failed proof does not burn a valid challenge. This authenticates the
+paired device and message, not approval to join a clipboard.
+
+The desktop server registers `/clipboard/challenge` and `/clipboard/identity`
+inside its normal encrypted HTTP stack. These read-only endpoints expose an
+authenticated signing identity only to an already paired peer. They do not enroll
+members, enable recording, start Bluetooth, or create a clipboard. Invitation,
+acceptance and history/payload routes still need implementation.
+
+The encrypted identity round-trip test uses the existing HTTP encryption plugins.
+It exposed a sender bug: changing `HttpRequestBuilder.body` did not replace the
+send-pipeline subject the engine used. `ClientEncryptPlugin` now forwards the
+encrypted subject with `proceedWith`. Wire-level JSON and binary checks verify the
+engine receives transformed bytes, rather than merely checking for a successful
+mock response.
+
 `ClipboardMembershipStore` persists explicitly approved P-256 public signing keys
 per clipboard (migration 11). Creating a clipboard and approving its local member
 commit together. Approval is idempotent for the same key and rejects replacement

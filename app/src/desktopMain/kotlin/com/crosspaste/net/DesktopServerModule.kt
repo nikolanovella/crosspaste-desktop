@@ -8,7 +8,9 @@ import com.crosspaste.db.paste.PasteDao
 import com.crosspaste.net.exception.ExceptionHandler
 import com.crosspaste.net.plugin.ServerDecryptionPluginFactory
 import com.crosspaste.net.plugin.ServerEncryptPluginFactory
+import com.crosspaste.net.routing.ClipboardPeerIdentity
 import com.crosspaste.net.routing.SyncRoutingApi
+import com.crosspaste.net.routing.clipboardIdentityRouting
 import com.crosspaste.net.ws.WsMessageHandler
 import com.crosspaste.net.ws.WsSessionManager
 import com.crosspaste.pairing.v3.PairingProtocolV3Service
@@ -22,8 +24,11 @@ import com.crosspaste.secure.SecureStore
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.PendingKeyExchangeStore
 import com.crosspaste.sync.PushSessionManager
+import com.crosspaste.sync.journal.ClipboardPeerAuthentication
+import com.crosspaste.utils.getCodecsUtils
 import io.ktor.server.application.*
 import io.ktor.server.plugins.compression.*
+import io.ktor.server.routing.routing
 
 class DesktopServerModule(
     appControl: AppControl,
@@ -51,6 +56,7 @@ class DesktopServerModule(
     userDataPathProvider: UserDataPathProvider,
     wsMessageHandler: WsMessageHandler,
     wsSessionManager: WsSessionManager,
+    private val clipboardPeerAuth: ClipboardPeerAuthentication? = null,
 ) : DefaultServerModule(
         appControl,
         appInfo,
@@ -79,6 +85,16 @@ class DesktopServerModule(
         wsSessionManager,
     ) {
 
+    private val clipboardLocalDevice = appInfo.appInstanceId
+    private val clipboardIdentity: suspend () -> ClipboardPeerIdentity = {
+        ClipboardPeerIdentity(
+            clipboardLocalDevice,
+            getCodecsUtils().base64Encode(
+                secureKeyPairSerializer.encodeSignPublicKey(secureStore.secureKeyPair.signKeyPair.publicKey),
+            ),
+        )
+    }
+
     override fun installModules(): Application.() -> Unit =
         {
             install(Compression) {
@@ -91,5 +107,8 @@ class DesktopServerModule(
                 }
             }
             super.installModules()()
+            clipboardPeerAuth?.let { authentication ->
+                routing { clipboardIdentityRouting(clipboardLocalDevice, authentication, clipboardIdentity) }
+            }
         }
 }
