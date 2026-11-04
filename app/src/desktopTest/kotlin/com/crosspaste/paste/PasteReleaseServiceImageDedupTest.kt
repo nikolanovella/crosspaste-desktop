@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -131,7 +132,9 @@ class PasteReleaseServiceImageDedupTest {
     private class Fixture {
         val taskSubmitter = ImmediateTaskSubmitter()
         val currentPaste = mockk<CurrentPaste>(relaxed = true)
-        val database = createDatabase(TestDriverFactory())
+        val driverFactory = TestDriverFactory()
+        val database = createDatabase(driverFactory)
+        val configManager = mockk<CommonConfigManager>(relaxed = true)
         private val pasteItemReader = DefaultPasteItemReader()
 
         lateinit var pasteDao: SqlPasteDao
@@ -142,6 +145,7 @@ class PasteReleaseServiceImageDedupTest {
             searchContentService: SearchContentService,
             userDataPathProvider: UserDataPathProvider,
         ) {
+            every { configManager.getCurrentConfig().enableSyncText } returns true
             pasteDao =
                 SqlPasteDao(
                     appInfo = appInfo,
@@ -153,7 +157,7 @@ class PasteReleaseServiceImageDedupTest {
                 )
             service =
                 PasteReleaseService(
-                    commonConfigManager = mockk(relaxed = true),
+                    commonConfigManager = configManager,
                     currentPaste = currentPaste,
                     database = database,
                     notificationManager = mockk(relaxed = true),
@@ -171,6 +175,100 @@ class PasteReleaseServiceImageDedupTest {
 
     private fun newFixture(userDataPathProvider: UserDataPathProvider = mockk(relaxed = true)): Fixture =
         Fixture().apply { init(appInfo, searchContentService, userDataPathProvider) }
+
+    @Test
+    fun `joined clipboard captures completed local content durably before history cleanup`() =
+        runTest {
+            val fixture = newFixture()
+            every { fixture.configManager.getCurrentConfig().enablePasteboardListening } returns true
+            val queries = fixture.database.sharedClipboardDatabaseQueries
+            queries.putWorkspace("shared", true, true)
+            val id = fixture.createLoadingRecord()
+            fixture.service.releaseLocalPasteData(
+                id,
+                listOf(createTextPasteItem(text = "original clipboard text")),
+                null,
+            )
+            val capture = queries.getPendingCaptures("shared", 50).executeAsOne()
+            assertEquals(id, capture.localPasteId)
+            assertEquals(appInfo.appInstanceId, capture.originDevice)
+            assertTrue(capture.pasteAppearItem.contains("original clipboard text"))
+            fixture.pasteDao.markDeletePasteData(id)
+            assertEquals(capture, queries.getPendingCaptures("shared", 50).executeAsOne())
+        }
+
+    @Test
+    fun `capture respects contribution pause workspace membership and explicit recipient scope`() =
+        runTest {
+            for (mode in listOf("unjoined", "disabled", "contribution-off", "paused", "targeted", "type-disabled")) {
+                val fixture = newFixture()
+                every { fixture.configManager.getCurrentConfig().enablePasteboardListening } returns (mode != "paused")
+                every { fixture.configManager.getCurrentConfig().enableSyncText } returns (mode != "type-disabled")
+                val queries = fixture.database.sharedClipboardDatabaseQueries
+                if (mode != "unjoined") queries.putWorkspace("shared", mode != "disabled", mode != "contribution-off")
+                val id = fixture.createLoadingRecord()
+                fixture.service.releaseLocalPasteData(
+                    id,
+                    listOf(createTextPasteItem(text = "private-$mode")),
+                    if (mode ==
+                        "targeted"
+                    ) {
+                        setOf("selected-peer")
+                    } else {
+                        null
+                    },
+                )
+                assertTrue(queries.getPendingCaptures("shared", 50).executeAsList().isEmpty(), mode)
+                assertEquals(PasteState.LOADED, fixture.pasteDao.getNoDeletePasteDataBlock(id)?.pasteState)
+            }
+        }
+
+    @Test
+    fun `discarded duplicate images never produce a shared capture`() =
+        runTest {
+            val fixture = newFixture()
+            every { fixture.configManager.getCurrentConfig().enablePasteboardListening } returns true
+            fixture.database.sharedClipboardDatabaseQueries.putWorkspace("shared", true, true)
+            fixture.createLoadedRecord(imageItem(), PasteType.IMAGE_TYPE, DateUtils.nowEpochMilliseconds())
+            val id = fixture.createLoadingRecord()
+            fixture.service.releaseLocalPasteData(id, listOf(imageItem()), null)
+            assertNotNull(fixture.pasteDao.getDeletePasteData(id))
+            assertTrue(
+                fixture.database.sharedClipboardDatabaseQueries
+                    .getPendingCaptures("shared", 50)
+                    .executeAsList()
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `capture insertion failure rolls back the loaded row in the same transaction`() =
+        runTest {
+            val fixture = newFixture()
+            every { fixture.configManager.getCurrentConfig().enablePasteboardListening } returns true
+            fixture.database.sharedClipboardDatabaseQueries.putWorkspace("shared", true, true)
+            fixture.driverFactory.sqlDriver!!.execute(
+                null,
+                "CREATE TRIGGER RejectCapture BEFORE INSERT ON SharedClipboardCaptureEntity " +
+                    "BEGIN SELECT RAISE(ABORT, 'test capture storage failure'); END",
+                0,
+            )
+            val id = fixture.createLoadingRecord()
+            assertFails {
+                fixture.service.releaseLocalPasteData(
+                    id,
+                    listOf(createTextPasteItem(text = "rollback")),
+                    null,
+                )
+            }
+            assertNotNull(fixture.pasteDao.getLoadingPasteData(id))
+            assertTrue(
+                fixture.database.sharedClipboardDatabaseQueries
+                    .getPendingCaptures("shared", 50)
+                    .executeAsList()
+                    .isEmpty(),
+            )
+        }
 
     private fun userDataPathProvider(storageDir: File): UserDataPathProvider {
         val appConfig = mockk<AppConfig>()

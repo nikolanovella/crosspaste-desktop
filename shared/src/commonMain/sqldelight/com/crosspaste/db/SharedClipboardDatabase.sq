@@ -1,0 +1,44 @@
+import kotlin.Boolean;
+
+-- Membership setup explicitly activates a workspace. An empty table captures nothing.
+CREATE TABLE SharedClipboardWorkspaceEntity (
+    clipboardId TEXT PRIMARY KEY NOT NULL,
+    enabled INTEGER AS Boolean NOT NULL DEFAULT 0,
+    contributeLocal INTEGER AS Boolean NOT NULL DEFAULT 0
+);
+
+-- Immutable capture metadata survives history dedup/deletion while signing is pending.
+-- File bytes still require payload retention before this queue is enabled in production.
+CREATE TABLE SharedClipboardCaptureEntity (
+    clipboardId TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    originDevice TEXT NOT NULL,
+    pasteAppearItem TEXT NOT NULL,
+    pasteCollection TEXT NOT NULL,
+    pasteType INTEGER NOT NULL,
+    source TEXT,
+    size INTEGER NOT NULL,
+    hash TEXT NOT NULL,
+    createTime INTEGER NOT NULL,
+    PRIMARY KEY (clipboardId, localPasteId)
+);
+
+putWorkspace:
+INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
+VALUES (?, ?, ?);
+
+enqueueLoadedLocalCapture:
+INSERT OR IGNORE INTO SharedClipboardCaptureEntity
+SELECT w.clipboardId, p.id, p.appInstanceId, p.pasteAppearItem, p.pasteCollection,
+       p.pasteType, p.source, p.size, p.hash, p.createTime
+FROM PasteDataEntity p CROSS JOIN SharedClipboardWorkspaceEntity w
+WHERE p.id = :localPasteId AND p.pasteState = 1 AND p.remote = 0
+  AND p.pasteAppearItem IS NOT NULL AND p.hash <> ''
+  AND w.enabled = 1 AND w.contributeLocal = 1;
+
+getPendingCaptures:
+SELECT * FROM SharedClipboardCaptureEntity
+WHERE clipboardId = :clipboardId ORDER BY localPasteId ASC LIMIT :batchLimit;
+
+completeCapture:
+DELETE FROM SharedClipboardCaptureEntity WHERE clipboardId = ? AND localPasteId = ?;

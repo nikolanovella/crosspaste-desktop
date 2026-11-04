@@ -30,12 +30,23 @@ store, not yet the scalable indexed journal needed for unlimited history.
 `DesktopSignedClipboardStore` retains signatures alongside metadata with the same
 atomic replacement behavior; the signed layer verifies recovered data before use.
 
+The local release pipeline now has an opt-in database capture outbox. A workspace
+must be explicitly enabled with contribution on; a fresh database has no such
+workspace. After processing and image dedup, eligible local content is frozen in
+the outbox in the same transaction that marks its history record loaded. Capture
+respects local listening and content-type sync switches and excludes received
+items and explicitly scoped recipients. The metadata remains available after
+ordinary history dedup/deletion. A failed outbox insert rolls back the loaded row.
+Migration 8 adds only the new workspace/outbox tables; it does not rewrite history.
+
 ## Required before live use
 
 - Connect explicitly approved clipboard membership to the signature-verification
   resolver. Authenticated transport alone does not establish that membership.
-- Integrate transactional local-copy/edit/delete capture and durable incoming
+- Finish the transactional outbox consumer, edits/deletions, and durable incoming
   reconciliation with the existing database and clipboard lifecycle.
+- Retain file payloads referenced by pending captures before enabling capture in
+  the product; preserving metadata alone does not prevent file cleanup.
 - Transfer and verify missing payloads separately from journal metadata.
 - Drain missing batches across reconnects, including Bluetooth transport.
 - Separate historical catch-up from the live OS clipboard selection.

@@ -351,7 +351,10 @@ class PasteReleaseServicePushTest {
             com.crosspaste.utils.getDateUtils().run {
                 getYMD(epochMillisecondsToLocalDateTime(pasteData.createTime))
             }
-        assertEquals(listOf("test-mobile/$ymd/$newPasteId/small.txt"), files.relativePathList)
+        assertEquals(
+            listOf(File("test-mobile/$ymd/$newPasteId/small.txt").toPath()),
+            files.relativePathList.map { File(it).toPath() },
+        )
         val slotFile =
             storage
                 .toOkioPath()

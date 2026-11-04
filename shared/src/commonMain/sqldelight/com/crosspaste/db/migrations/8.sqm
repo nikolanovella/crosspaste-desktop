@@ -1,0 +1,19 @@
+CREATE TABLE SharedClipboardWorkspaceEntity (
+    clipboardId TEXT PRIMARY KEY NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    contributeLocal INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE SharedClipboardCaptureEntity (
+    clipboardId TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    originDevice TEXT NOT NULL,
+    pasteAppearItem TEXT NOT NULL,
+    pasteCollection TEXT NOT NULL,
+    pasteType INTEGER NOT NULL,
+    source TEXT,
+    size INTEGER NOT NULL,
+    hash TEXT NOT NULL,
+    createTime INTEGER NOT NULL,
+    PRIMARY KEY (clipboardId, localPasteId)
+);

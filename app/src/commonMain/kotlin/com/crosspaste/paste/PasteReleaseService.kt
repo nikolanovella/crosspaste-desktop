@@ -23,6 +23,7 @@ import com.crosspaste.presist.buildFilesIndexForReceive
 import com.crosspaste.presist.validateFileTransferMetadata
 import com.crosspaste.sync.FilePullService
 import com.crosspaste.sync.PastePullCursorManager
+import com.crosspaste.sync.isSyncEnabledForType
 import com.crosspaste.task.TaskBuilder
 import com.crosspaste.task.TaskSubmitter
 import com.crosspaste.utils.DateUtils
@@ -244,12 +245,35 @@ class PasteReleaseService(
                     !firstItem.isRefFiles() &&
                     hash.isNotEmpty()
 
+            val captureConfig = commonConfigManager.getCurrentConfig()
+            val captureForSharedClipboard =
+                targetAppInstanceIds == null &&
+                    captureConfig.enablePasteboardListening &&
+                    captureConfig.isSyncEnabledForType(pasteType)
             val change =
                 if (isLocalNonRefImage) {
-                    releaseLocalImageDeduped(pasteData, firstItem, remainingItems, size, hash, pasteType, id)
+                    releaseLocalImageDeduped(
+                        pasteData,
+                        firstItem,
+                        remainingItems,
+                        size,
+                        hash,
+                        pasteType,
+                        id,
+                        captureForSharedClipboard,
+                    )
                         ?: return@let
                 } else {
-                    persistLoaded(pasteData, firstItem, remainingItems, size, hash, pasteType, id)
+                    persistLoaded(
+                        pasteData,
+                        firstItem,
+                        remainingItems,
+                        size,
+                        hash,
+                        pasteType,
+                        id,
+                        captureForSharedClipboard,
+                    )
                 }
 
             if (change) {
@@ -342,6 +366,7 @@ class PasteReleaseService(
         hash: String,
         pasteType: PasteType,
         id: Long,
+        captureForSharedClipboard: Boolean,
     ): Boolean =
         database.transactionWithResult {
             writeLoadedRow(
@@ -357,7 +382,11 @@ class PasteReleaseService(
                         pasteItemReader.getSearchContent(firstItem),
                     ),
             )
-            database.pasteDatabaseQueries.change().executeAsOne() > 0
+            val changed = database.pasteDatabaseQueries.change().executeAsOne() > 0
+            if (changed && captureForSharedClipboard && !pasteData.remote) {
+                database.sharedClipboardDatabaseQueries.enqueueLoadedLocalCapture(id)
+            }
+            changed
         }
 
     /**
@@ -396,6 +425,7 @@ class PasteReleaseService(
         hash: String,
         pasteType: PasteType,
         id: Long,
+        captureForSharedClipboard: Boolean,
     ): Boolean? =
         imageDedupMutex.withLock("${pasteType.type}:$hash") {
             val windowMillis = IMAGE_DEDUP_WINDOW.inWholeMilliseconds
@@ -409,7 +439,16 @@ class PasteReleaseService(
                 )
 
             if (keptId == null) {
-                persistLoaded(pasteData, firstItem, remainingItems, size, hash, pasteType, id)
+                persistLoaded(
+                    pasteData,
+                    firstItem,
+                    remainingItems,
+                    size,
+                    hash,
+                    pasteType,
+                    id,
+                    captureForSharedClipboard,
+                )
             } else {
                 logger.info { "Discarding duplicate local image paste id=$id, keeping recent record id=$keptId" }
                 taskSubmitter.submit {
