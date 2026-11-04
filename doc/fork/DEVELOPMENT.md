@@ -89,11 +89,15 @@ attribution, and package layout. Do not force-push `main` to make an update fit.
 
 ## Custom releases
 
-There are no custom release binaries yet. The inherited publishing workflows
-reference upstream signing and release infrastructure; they are not ready-made
-personal-fork distribution pipelines. Configure a separate release process before
-publishing a modified installer, identify it as a fork, and retain the
-[license](../../LICENSE).
+The `Clipboard Workbench builds` workflow produces separate portable preview
+archives for Windows x64, macOS Apple Silicon, and macOS Intel. Find them under
+Artifacts on the latest successful run for `feature/clipboard-workbench`.
+The tar archives preserve executable permissions and contain the complete bundled
+runtime, pinned OpenSSL library, license notices, and source link. Extract the
+archive before launching; keep the whole application folder together.
 
-Until then, use the official desktop release for ordinary clipboard sharing and
-development builds only for the feature being tested.
+Mac previews are ad-hoc signed for bundle integrity, not Developer ID signed or
+notarized. These are development builds. The inherited publishing workflows
+reference upstream signing infrastructure and are not used for this preview.
+Keep the [license](../../LICENSE) and source notices with redistributed packages.
+Do not run the official app and preview simultaneously against the same profile.
