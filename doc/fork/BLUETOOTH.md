@@ -65,3 +65,16 @@ Real OS permission/pairing, Wi-Fi-disabled transfer, reconnect after sleep, and
 bidirectional text/image/file behavior still require testing on the paired Mac.
 Bluetooth's throughput is lower than Wi-Fi; generous bounded transfer timeouts
 are applied only to registered Bluetooth relay endpoints.
+
+Updated Windows CI run `41854073952` passed packaging, native self-test, all
+128 protocol/Bluetooth checks and all 36 existing Workbench checks. Its XML
+artifact was read back: zero failures, errors or skipped tests in either suite.
+The packaged classes and native helper were checked in the local portable build.
+The working Windows installation has not been replaced while its desktop is
+locked, so the new Devices card remains unverified through real screen control.
+
+Both Mac jobs in that run failed to acquire hosted runners. Mac-only retry
+`41857764581` used the alternate `macos-15` Apple Silicon and `macos-26-intel`
+pools; both again failed before executing any build step. GitHub's annotations
+explicitly report runner acquisition failure and arm64 capacity constraints.
+This is an outstanding build-verification gap, not a successful Mac build.
