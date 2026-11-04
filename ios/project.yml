@@ -30,7 +30,7 @@ targets:
         PRODUCT_NAME: CrossPaste
         INFOPLIST_FILE: CrossPasteIOS/Info.plist
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: S8NY89NYN6
+        DEVELOPMENT_TEAM: S97N9SMGGJ
 schemes:
   CrossPasteIOS:
     build:
