@@ -47,7 +47,10 @@ import com.crosspaste.ui.theme.AppUISize.xxLarge
 import org.koin.compose.koinInject
 
 @Composable
-fun DevicesContentView(guideContent: (@Composable () -> Unit)? = null) {
+fun DevicesContentView(
+    transportContent: (@Composable () -> Unit)? = null,
+    guideContent: (@Composable () -> Unit)? = null,
+) {
     val copywriter = koinInject<GlobalCopywriter>()
     val deviceScopeFactory = koinInject<DeviceScopeFactory>()
     val nearbyDeviceManager = koinInject<NearbyDeviceManager>()
@@ -132,6 +135,7 @@ fun DevicesContentView(guideContent: (@Composable () -> Unit)? = null) {
             contentPadding = PaddingValues(bottom = titanic),
             verticalArrangement = Arrangement.spacedBy(tiny),
         ) {
+            transportContent?.let { content -> item(key = "desktop-transport") { content() } }
             myDevicesSection(
                 deviceGroups = deviceGroups,
                 offlineExpanded = offlineExpanded,

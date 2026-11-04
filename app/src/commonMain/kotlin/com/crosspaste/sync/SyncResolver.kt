@@ -28,6 +28,7 @@ import com.crosspaste.secure.SecureStore
 import com.crosspaste.utils.CryptographyUtils
 import com.crosspaste.utils.DateUtils.nowEpochMilliseconds
 import com.crosspaste.utils.HostAndPort
+import com.crosspaste.utils.PeerTransportRoutes
 import com.crosspaste.utils.StripedMutex
 import com.crosspaste.utils.buildUrl
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -284,7 +285,9 @@ class SyncResolver(
         // turns into a log storm (#4509 / #4499: 700+ lines in one offline session).
         // Skip probing entirely and stay DISCONNECTED; the NetworkStateMonitor re-emits
         // interfaces the moment connectivity returns, and the next poll resolves cleanly.
-        if (networkInterfaceService.getCurrentUseNetworkInterfaces().isEmpty()) {
+        if (networkInterfaceService.getCurrentUseNetworkInterfaces().isEmpty() &&
+            !PeerTransportRoutes.hasRoute(appInstanceId)
+        ) {
             logger.debug { "$appInstanceId offline (no local interface), skipping discovery" }
             if (connectState != SyncState.DISCONNECTED) {
                 updateConnectState(SyncState.DISCONNECTED)
@@ -338,6 +341,7 @@ class SyncResolver(
         callback: ResolveCallback,
     ): Int =
         if (secureStore.existCryptPublicKey(appInstanceId)) {
+            val temporaryTransport = PeerTransportRoutes.hasRoute(appInstanceId)
             val state = heartbeat(host, port, appInstanceId, callback)
             when (state) {
                 SyncState.CONNECTED -> {
@@ -349,9 +353,14 @@ class SyncResolver(
                 }
 
                 SyncState.UNMATCHED -> {
-                    logger.info { "heartbeat key mismatch $appInstanceId, re-authenticating" }
-                    secureStore.deleteCryptPublicKey(appInstanceId)
-                    tryTokenCacheOrUnverified(host, networkPrefixLength)
+                    if (temporaryTransport) {
+                        // A failed optional link must never erase the established LAN trust.
+                        updateConnectState(SyncState.DISCONNECTED, host, networkPrefixLength)
+                    } else {
+                        logger.info { "heartbeat key mismatch $appInstanceId, re-authenticating" }
+                        secureStore.deleteCryptPublicKey(appInstanceId)
+                        tryTokenCacheOrUnverified(host, networkPrefixLength)
+                    }
                 }
 
                 SyncState.INCOMPATIBLE -> {
@@ -443,6 +452,7 @@ class SyncResolver(
             // can be LRU-evicted from hostInfoList once the peer advertises newer ones;
             // keeping liveness checks bound to the address (not list membership) is what
             // makes that boundary safe. Do not change this to "only probe hostInfoList".
+            val temporaryTransport = PeerTransportRoutes.hasRoute(appInstanceId)
             val state = heartbeat(host, port, appInstanceId, callback)
             when (state) {
                 SyncState.CONNECTED -> {
@@ -451,9 +461,13 @@ class SyncResolver(
                 }
 
                 SyncState.UNMATCHED -> {
-                    logger.info { "connection key mismatch $appInstanceId, re-authenticating" }
-                    secureStore.deleteCryptPublicKey(appInstanceId)
-                    tryTokenCacheOrUnverified(host, connectNetworkPrefixLength)
+                    if (temporaryTransport) {
+                        updateConnectState(SyncState.DISCONNECTED, host, connectNetworkPrefixLength)
+                    } else {
+                        logger.info { "connection key mismatch $appInstanceId, re-authenticating" }
+                        secureStore.deleteCryptPublicKey(appInstanceId)
+                        tryTokenCacheOrUnverified(host, connectNetworkPrefixLength)
+                    }
                 }
 
                 SyncState.INCOMPATIBLE -> {
@@ -491,6 +505,15 @@ class SyncResolver(
      * hosts so a ghost on a historical IP is never selected.
      */
     private suspend fun SyncRuntimeInfo.discoverReachableHost(): Pair<HostInfo, VersionRelation>? {
+        if (PeerTransportRoutes.hasRoute(appInstanceId)) {
+            // The relay only supplies transport. Identity still has to match here,
+            // and the existing encrypted heartbeat must authenticate the peer.
+            val candidate = hostInfoList.firstOrNull() ?: HostInfo(32, "127.0.0.1")
+            val result = telnetHelper.telnet(candidate.hostAddress, port, 15_000L, appInstanceId)
+            return result?.takeIf { it.peerAppInstanceId == appInstanceId }?.let {
+                Pair(candidate, it.versionRelation)
+            }
+        }
         val ordered =
             hostInfoList.sortedWith(
                 compareByDescending<HostInfo> { it.lastSeen }
@@ -502,7 +525,8 @@ class SyncResolver(
             // Per-poll probe trace stays at debug; the conclusion (connecting / no reachable
             // host) is logged at info by the caller, so dropping this loses nothing for triage.
             logger.debug { "$appInstanceId fast probe ${freshest.hostAddress}:$port (lastSeen=${freshest.lastSeen})" }
-            telnetHelper.telnet(freshest.hostAddress, port, TelnetHelper.FAST_TIMEOUT)?.let { telnetResult ->
+            val probe = telnetHelper.telnet(freshest.hostAddress, port, TelnetHelper.FAST_TIMEOUT)
+            probe?.let { telnetResult ->
                 if (telnetResult.identityAccepted(appInstanceId)) {
                     return@discoverReachableHost Pair(freshest, telnetResult.versionRelation)
                 }
@@ -566,7 +590,7 @@ class SyncResolver(
         targetAppInstanceId: String,
         callback: ResolveCallback,
     ): Int {
-        val hostAndPort = HostAndPort(host, port)
+        val hostAndPort = HostAndPort(host, port, targetAppInstanceId)
 
         // Piggyback our current return address onto the heartbeat (#4509). Advertise only the
         // local interface(s) on the peer's subnet — the address it can actually route to — and
@@ -649,7 +673,7 @@ class SyncResolver(
     private suspend fun SyncRuntimeInfo.trustByTokenCache(): Boolean {
         tokenCache.getToken(appInstanceId)?.let { token ->
             connectHostAddress?.let { host ->
-                val hostAndPort = HostAndPort(host, port)
+                val hostAndPort = HostAndPort(host, port, appInstanceId)
                 val result =
                     syncClientApi.trust(appInstanceId, host, token.value) {
                         buildUrl(hostAndPort)
@@ -677,7 +701,7 @@ class SyncResolver(
             return
         }
         connectHostAddress?.let { host ->
-            val hostAndPort = HostAndPort(host, port)
+            val hostAndPort = HostAndPort(host, port, appInstanceId)
             val result =
                 syncClientApi.trust(appInstanceId, host, token.value) {
                     buildUrl(hostAndPort)
@@ -711,7 +735,7 @@ class SyncResolver(
             return
         }
         connectHostAddress?.let { host ->
-            val hostAndPort = HostAndPort(host, port)
+            val hostAndPort = HostAndPort(host, port, appInstanceId)
 
             // Step 1: Exchange keys. This exchange supersedes the dialog's
             // warm-up on the responder; record its generation BEFORE sending so
@@ -836,7 +860,7 @@ class SyncResolver(
                 syncInfo = syncInfoFactory.createSyncInfo(advertiseHostInfo),
                 targetAppInstanceId = appInstanceId,
             ) {
-                buildUrl(HostAndPort(host, port))
+                buildUrl(HostAndPort(host, port, appInstanceId))
             }
         if (result is SuccessResult) {
             lastHeartbeatAdvertised[appInstanceId] = advertiseHostInfo

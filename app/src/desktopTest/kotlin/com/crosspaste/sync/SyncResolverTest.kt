@@ -34,6 +34,7 @@ import com.crosspaste.sync.SyncTestFixtures.createConnectingSyncRuntimeInfo
 import com.crosspaste.sync.SyncTestFixtures.createSyncRuntimeInfo
 import com.crosspaste.sync.SyncTestFixtures.createUnverifiedSyncRuntimeInfo
 import com.crosspaste.utils.CryptographyUtils
+import com.crosspaste.utils.PeerTransportRoutes
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -106,6 +107,78 @@ class SyncResolverTest {
                 wsSessionManager = wsSessionManager,
             )
     }
+
+    @Test
+    fun bluetoothRoute_withoutNetwork_authenticatesUsingTheExistingKey() =
+        runTest {
+            val deps = TestDeps()
+            val info = createSyncRuntimeInfo(appInstanceId = "bluetooth-offline-peer")
+            deps.stubDbRead(info)
+            every { deps.networkInterfaceService.getCurrentUseNetworkInterfaces() } returns emptyList()
+            coEvery { deps.telnetHelper.telnet(any(), any(), any(), info.appInstanceId) } returns
+                TelnetResult(VersionRelation.EQUAL_TO, info.appInstanceId)
+            coEvery { deps.secureStore.existCryptPublicKey(info.appInstanceId) } returns true
+            coEvery { deps.syncClientApi.heartbeat(any(), info.appInstanceId, any()) } returns
+                SuccessResult(VersionRelation.EQUAL_TO)
+            val changes = mutableListOf<SyncRuntimeInfo>()
+            coEvery { deps.syncRuntimeInfoDao.updateConnectInfo(capture(changes)) } returns info.appInstanceId
+            val lease = PeerTransportRoutes.registerLoopback(info.appInstanceId, 24601)
+            try {
+                deps.createResolver().emitEvent(SyncEvent.Resolve(info, createTestCallback()))
+                assertEquals(SyncState.CONNECTED, changes.last().connectState)
+                coVerify(exactly = 1) { deps.syncClientApi.heartbeat(any(), info.appInstanceId, any()) }
+                coVerify(exactly = 0) { deps.secureStore.deleteCryptPublicKey(info.appInstanceId) }
+            } finally {
+                lease.release()
+            }
+        }
+
+    @Test
+    fun bluetoothAuthenticationFailure_neverDeletesAnEstablishedPairing() =
+        runTest {
+            for (initialState in listOf(SyncState.DISCONNECTED, SyncState.CONNECTED)) {
+                val deps = TestDeps()
+                val info =
+                    createConnectedSyncRuntimeInfo().copy(
+                        appInstanceId = "bluetooth-key-preservation-$initialState",
+                        connectState = initialState,
+                    )
+                deps.stubDbRead(info)
+                coEvery { deps.telnetHelper.telnet(any(), any(), any(), info.appInstanceId) } returns
+                    TelnetResult(VersionRelation.EQUAL_TO, info.appInstanceId)
+                coEvery { deps.secureStore.existCryptPublicKey(info.appInstanceId) } returns true
+                coEvery { deps.syncClientApi.heartbeat(any(), info.appInstanceId, any()) } returns DecryptFail
+                val changes = mutableListOf<SyncRuntimeInfo>()
+                coEvery { deps.syncRuntimeInfoDao.updateConnectInfo(capture(changes)) } returns info.appInstanceId
+                val lease = PeerTransportRoutes.registerLoopback(info.appInstanceId, 24602)
+                try {
+                    deps.createResolver().emitEvent(SyncEvent.Resolve(info, createTestCallback()))
+                    assertEquals(SyncState.DISCONNECTED, changes.last().connectState)
+                    coVerify(exactly = 0) { deps.secureStore.deleteCryptPublicKey(info.appInstanceId) }
+                } finally {
+                    lease.release()
+                }
+            }
+        }
+
+    @Test
+    fun bluetoothCandidate_withDifferentIdentity_neverReachesAuthentication() =
+        runTest {
+            val deps = TestDeps()
+            val info = createSyncRuntimeInfo(appInstanceId = "bluetooth-identity-peer")
+            deps.stubDbRead(info)
+            every { deps.networkInterfaceService.getCurrentUseNetworkInterfaces() } returns emptyList()
+            coEvery { deps.telnetHelper.telnet(any(), any(), any(), info.appInstanceId) } returns
+                TelnetResult(VersionRelation.EQUAL_TO, "different-peer")
+            val lease = PeerTransportRoutes.registerLoopback(info.appInstanceId, 24603)
+            try {
+                deps.createResolver().emitEvent(SyncEvent.Resolve(info, createTestCallback()))
+                coVerify(exactly = 0) { deps.syncClientApi.heartbeat(any(), any(), any()) }
+                coVerify(exactly = 0) { deps.secureStore.deleteCryptPublicKey(any()) }
+            } finally {
+                lease.release()
+            }
+        }
 
     private class FakeTokenCache : TokenCacheApi {
         private val tokens = mutableMapOf<String, QrBearerToken>()

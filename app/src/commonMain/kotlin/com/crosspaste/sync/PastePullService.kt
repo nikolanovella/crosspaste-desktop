@@ -79,7 +79,7 @@ class PastePullService(
         val afterId = pastePullCursorManager.getQueryAfterId(appInstanceId) ?: return emptyList()
         val host = handler.getConnectHostAddress() ?: return emptyList()
         val info = handler.currentSyncRuntimeInfo
-        val address = HostAndPort(host, info.port)
+        val address = HostAndPort(host, info.port, appInstanceId)
         val peerVersion = "${info.appVersion}:$host:${info.port}"
         val boundedLimit = limit.coerceIn(1L, MAX_PULL_BATCH_LIMIT)
         var result =

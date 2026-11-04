@@ -250,7 +250,7 @@ class SyncPasteTaskExecutor(
         // 2. Regular devices prefer HTTP (supports concurrent chunk transfer for large files)
         val hostAddress = handler.getConnectHostAddress()
         if (hostAddress != null) {
-            val hostAndPort = HostAndPort(hostAddress, port)
+            val hostAndPort = HostAndPort(hostAddress, port, syncRuntimeInfo.appInstanceId)
             return pasteClientApi.sendPaste(
                 pasteData,
                 targetAppInstanceId,

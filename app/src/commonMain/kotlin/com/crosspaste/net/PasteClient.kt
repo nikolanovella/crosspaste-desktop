@@ -3,6 +3,7 @@ package com.crosspaste.net
 import com.crosspaste.app.AppInfo
 import com.crosspaste.net.plugin.ClientDecryptPlugin
 import com.crosspaste.net.plugin.ClientEncryptPlugin
+import com.crosspaste.utils.PeerTransportRoutes
 import com.crosspaste.utils.getJsonUtils
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.*
@@ -58,13 +59,12 @@ class PasteClient(
         client.post {
             header("appInstanceId", appInfo.appInstanceId)
             headers(headersBuilder)
-            timeout {
-                requestTimeoutMillis = timeout
-            }
             contentType(ContentType.Application.Json)
             url {
                 urlBuilder()
             }
+            val effectiveTimeout = PeerTransportRoutes.requestTimeoutMillis(url.host, url.port, timeout)
+            timeout { requestTimeoutMillis = effectiveTimeout }
             setBody(message, messageType)
         }
 
@@ -85,12 +85,11 @@ class PasteClient(
         client.post {
             header("appInstanceId", appInfo.appInstanceId)
             headers(headersBuilder)
-            timeout {
-                requestTimeoutMillis = timeout
-            }
             url {
                 urlBuilder()
             }
+            val effectiveTimeout = PeerTransportRoutes.requestTimeoutMillis(url.host, url.port, timeout, binary = true)
+            timeout { requestTimeoutMillis = effectiveTimeout }
             setBody(ByteArrayContent(bytes, contentType = contentType))
         }
 
@@ -102,12 +101,11 @@ class PasteClient(
         client.get {
             header("appInstanceId", appInfo.appInstanceId)
             headers(headersBuilder)
-            timeout {
-                requestTimeoutMillis = timeout
-            }
             url {
                 urlBuilder()
             }
+            val effectiveTimeout = PeerTransportRoutes.requestTimeoutMillis(url.host, url.port, timeout)
+            timeout { requestTimeoutMillis = effectiveTimeout }
         }
 
     fun close() {

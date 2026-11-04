@@ -3,6 +3,8 @@ package com.crosspaste.net.ws
 import com.crosspaste.app.AppInfo
 import com.crosspaste.net.SyncApi
 import com.crosspaste.secure.SecureStore
+import com.crosspaste.utils.HostAndPort
+import com.crosspaste.utils.PeerTransportRoutes
 import com.crosspaste.utils.getJsonUtils
 import com.crosspaste.utils.ioDispatcher
 import com.crosspaste.utils.namedScope
@@ -40,7 +42,8 @@ class WsClientConnector(
                     "&targetAppInstanceId=$targetAppInstanceId" +
                     "&authVersion=${WsAuthenticationCodec.VERSION}"
 
-            client.webSocket(host = host, port = port, path = path) {
+            val endpoint = PeerTransportRoutes.resolve(HostAndPort(host, port, targetAppInstanceId))
+            client.webSocket(host = endpoint.host, port = endpoint.port, path = path) {
                 val rawSession = WsSession(this, targetAppInstanceId)
                 val receivedChallenge =
                     withTimeoutOrNull(WS_AUTHENTICATION_TIMEOUT) { receiveWsEnvelope(incoming) }

@@ -563,6 +563,8 @@ compose.desktop {
                         <string>true</string>
                         <key>NSAccessibilityUsageDescription</key>
                         <string>This application needs accessibility permissions to enhance your interaction with the system.</string>
+                        <key>NSBluetoothAlwaysUsageDescription</key>
+                        <string>CrossPaste uses Bluetooth only when you enable it to sync your clipboard with a paired computer without Wi-Fi.</string>
                         <key>LSMinimumSystemVersion</key>
                         <string>10.15.0</string>
                     """

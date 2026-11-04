@@ -77,6 +77,7 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.transport.bluetooth.BluetoothTransportController
 import com.crosspaste.ui.devices.DefaultPairingV3UiController
 import com.crosspaste.ui.devices.PairingV3UiController
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -94,6 +95,7 @@ fun desktopNetworkModule(
     headless: Boolean,
 ): Module =
     module {
+        single { BluetoothTransportController(get(), get(), get(), get(), get(), lazy { get() }, get()) }
         // region CLI
         single<CliEndpointFile> { CliEndpointFile(get(), devCliEndpointPointerPath(get())) }
         single<CliPairingService> {

@@ -43,6 +43,15 @@ jobs:
           fi
           cmake --build build/native-bluetooth --config Release
           ctest --test-dir build/native-bluetooth --build-config Release --output-on-failure
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            mkdir -p app/resources/windows-x64/bluetooth
+            cp build/native-bluetooth/Release/WindowsBluetoothTransport.exe app/resources/windows-x64/bluetooth/
+          else
+            if [[ "$(uname -m)" == "arm64" ]]; then ARCH=arm64; else ARCH=x64; fi
+            mkdir -p "app/resources/macos-$ARCH/bluetooth"
+            cp build/native-bluetooth/MacosBluetoothTransport "app/resources/macos-$ARCH/bluetooth/"
+            chmod +x "app/resources/macos-$ARCH/bluetooth/MacosBluetoothTransport"
+          fi
       - name: Check style, run regression tests, and build portable app
         shell: bash
         run: |
@@ -50,7 +59,7 @@ jobs:
           ./gradlew :app:desktopTest --tests 'com.crosspaste.workbench.*' --tests 'com.crosspaste.listener.*' --tests 'com.crosspaste.ui.model.PastePanelViewModelTest' --tests 'com.crosspaste.cli.CliRoutingTest.local UI activation*' --tests 'com.crosspaste.cli.CliRoutingTest.headless instance cannot*'
           mkdir -p app/build/verification/workbench
           cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/workbench/
-          ./gradlew :app:desktopTest --tests 'com.crosspaste.transport.bluetooth.*' -PintegrationTests
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.transport.bluetooth.*' --tests 'com.crosspaste.utils.PeerTransportRoutesTest' --tests 'com.crosspaste.net.TelnetHelperTest' --tests 'com.crosspaste.sync.SyncResolverTest' --tests 'com.crosspaste.sync.GeneralSyncManagerTest' -PintegrationTests
           mkdir -p app/build/verification/bluetooth
           cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/bluetooth/
           ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true

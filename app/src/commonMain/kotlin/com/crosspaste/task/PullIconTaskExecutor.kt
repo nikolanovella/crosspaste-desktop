@@ -63,7 +63,7 @@ class PullIconTaskExecutor(
                         syncManager.getSyncHandlers()[appInstanceId]?.let { handler ->
                             val port = handler.currentSyncRuntimeInfo.port
                             handler.getConnectHostAddress()?.let { host ->
-                                pullIcon(source, iconPath, host, port, baseExtraInfo)
+                                pullIcon(source, iconPath, host, port, appInstanceId, baseExtraInfo)
                             } ?: run {
                                 createFailurePasteTaskResult(
                                     baseExtraInfo = baseExtraInfo,
@@ -95,9 +95,10 @@ class PullIconTaskExecutor(
         iconPath: Path,
         host: String,
         port: Int,
+        appInstanceId: String,
         baseExtraInfo: BaseExtraInfo,
     ): PasteTaskResult {
-        val hostAndPort = HostAndPort(host, port)
+        val hostAndPort = HostAndPort(host, port, appInstanceId)
         val toUrl: URLBuilder.() -> Unit = {
             buildUrl(hostAndPort)
         }

@@ -64,7 +64,7 @@ class SyncDeviceManager(
                     }
                     return
                 }
-                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
                 val result =
                     syncClientApi.exchangeKeys(syncRuntimeInfo.appInstanceId, generation) {
                         buildUrl(hostAndPort)
@@ -103,7 +103,7 @@ class SyncDeviceManager(
             logger.info { "cancelPairing skipped for $appInstanceId (exchange superseded or consumed)" }
             return
         }
-        val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+        val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
         val result =
             syncClientApi.trustV2Cancel(generation) {
                 buildUrl(hostAndPort)
@@ -118,7 +118,7 @@ class SyncDeviceManager(
     suspend fun showToken(syncRuntimeInfo: SyncRuntimeInfo) {
         if (syncRuntimeInfo.connectState == SyncState.UNVERIFIED) {
             syncRuntimeInfo.connectHostAddress?.let { host ->
-                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
                 val result =
                     syncClientApi.showToken {
                         buildUrl(hostAndPort)
@@ -140,7 +140,7 @@ class SyncDeviceManager(
     suspend fun showPairingCode(syncRuntimeInfo: SyncRuntimeInfo): ShowPairingCodeResult {
         if (syncRuntimeInfo.connectState != SyncState.UNVERIFIED) return ShowPairingCodeResult.UNAVAILABLE
         val host = syncRuntimeInfo.connectHostAddress ?: return ShowPairingCodeResult.UNAVAILABLE
-        val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+        val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
         val result =
             syncClientApi.showPairingCode {
                 buildUrl(hostAndPort)
@@ -176,7 +176,7 @@ class SyncDeviceManager(
                 return
             }
             syncRuntimeInfo.connectHostAddress?.let { host ->
-                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
                 syncClientApi.notifyExit(syncRuntimeInfo.appInstanceId) {
                     buildUrl(hostAndPort)
                 }
@@ -208,7 +208,7 @@ class SyncDeviceManager(
         // HTTP authentication needs the shared key, so notify before deleting local trust state.
         if (!notifiedViaWs) {
             syncRuntimeInfo.connectHostAddress?.let { host ->
-                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+                val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
                 syncClientApi.notifyRemove(syncRuntimeInfo.appInstanceId) {
                     buildUrl(hostAndPort)
                 }

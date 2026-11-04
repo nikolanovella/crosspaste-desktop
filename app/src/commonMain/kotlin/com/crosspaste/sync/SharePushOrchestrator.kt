@@ -89,7 +89,7 @@ class SharePushOrchestrator(
                         "no connect host address for ${target.appInstanceId}",
                     )
                 }
-        val toUrl: URLBuilder.() -> Unit = { buildUrl(HostAndPort(host, target.port)) }
+        val toUrl: URLBuilder.() -> Unit = { buildUrl(HostAndPort(host, target.port, target.appInstanceId)) }
         return if (pasteData.isFileType()) {
             filePushService.pushFiles(pasteData, target.appInstanceId, toUrl, seenAppInstanceIds)
         } else {

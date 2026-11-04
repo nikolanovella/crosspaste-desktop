@@ -1,12 +1,13 @@
 {
-  "status": "Experimental transport foundation; not yet connected to the application UI or shipped as working Bluetooth sync.",
+  "status": "Experimental Devices UI and peer routing implemented, off by default. Physical Windows-Mac Bluetooth verification remains outstanding.",
   "serviceUuid": "7c028c61-7c9a-4b1a-a8cb-258b58b3e0ed",
   "platforms": {
     "Windows": "Windowless native RFCOMM connector; requests authenticated and encrypted Bluetooth link; no drivers or console helper. Built locally with static C++ runtime; pure address/service self-test passes.",
-    "macOS": "Transient RFCOMM service, accepts OS-paired peers only; permission usage text embedded. Compile verification is pending CI. Actual listen/connect is never run by CI self-tests."
+    "macOS": "Transient RFCOMM service for OS-paired peers; permission text in helper and app. Intel native build/self-test passed in run 41846587150; Apple Silicon job cancelled while queued. No radio use by CI."
   },
   "relay": "A bounded, credit-controlled multiplexer carries both devices' normal application connections across one byte stream. Local listeners bind only 127.0.0.1; remote opens can target only the configured local CrossPaste port. No arbitrary destination proxy.",
-  "trust": "The transport handshake only checks framing/version/role. Existing CrossPaste pairing and authenticated/encrypted requests must remain above it. Native Bluetooth pairing/permissions are not automated.",
-  "tests": "Three framing checks and three real-loopback integration checks pass on Windows, including 12 simultaneous bidirectional requests larger than the credit window, half-close handling, disconnect cleanup, and same-role rejection. These do not prove a real Bluetooth link.",
-  "remaining": ["macOS native compilation and runtime verification", "native-process lifecycle and packaging integration", "application endpoint routing and device UI integration", "real paired Windows-Mac test with Wi-Fi unavailable", "reconnect and transfer timeout policy"]
+  "routing": "Temporary peer-ID routes cover HTTP, file/icon requests and WebSockets without replacing saved LAN addresses. Registered routes work without a network interface. Only relay endpoints receive longer timeouts.",
+  "trust": "Requires an existing saved key and selected peer identity, then normal encrypted authentication. Bluetooth authentication failure never deletes established pairing. OS permissions and pairing are not automated.",
+  "tests": "128 local checks pass: framing, concurrent bidirectional transport, credit control, half-close, disconnect/cancellation, owned-process cleanup, route isolation/replacement, offline discovery, wrong identity, trust preservation and existing sync/telnet regressions. These do not prove a physical Bluetooth link.",
+  "remaining": ["updated all-platform CI and packaged UI verification", "real paired Windows-Mac test with Wi-Fi unavailable", "Mac text/image/file clipboard validation", "sleep/reconnect and sustained low-bandwidth transfers"]
 }

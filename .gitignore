@@ -49,3 +49,8 @@ skills-lock.json
 
 # CLI release binaries staged for packaging (P3)
 /cli/dist/
+
+# Platform-native helpers are built from native/bluetooth, never committed as binaries.
+/app/resources/windows-x64/bluetooth/
+/app/resources/macos-x64/bluetooth/
+/app/resources/macos-arm64/bluetooth/

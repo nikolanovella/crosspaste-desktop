@@ -246,7 +246,7 @@ class GeneralSyncManager(
         val host = syncRuntimeInfo.connectHostAddress ?: return PairingCredentialRefreshResult.RetryableFailure
 
         return try {
-            val hostAndPort = HostAndPort(host, syncRuntimeInfo.port)
+            val hostAndPort = HostAndPort(host, syncRuntimeInfo.port, syncRuntimeInfo.appInstanceId)
             val result = syncClientApi.syncInfo { buildUrl(hostAndPort) }
             if (result !is SuccessResult) {
                 logger.warn {

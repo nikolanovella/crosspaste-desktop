@@ -27,6 +27,7 @@ import androidx.navigation.toRoute
 import com.crosspaste.platform.Platform
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.SyncManager
+import com.crosspaste.transport.bluetooth.BluetoothDevicesCard
 import com.crosspaste.ui.base.ShareContentView
 import com.crosspaste.ui.devices.DesktopPromoteGuide
 import com.crosspaste.ui.devices.DeviceActions
@@ -307,6 +308,7 @@ class DesktopScreenProvider(
     private fun DevicesScreen() {
         DevicesContentView(
             guideContent = { DesktopPromoteGuide() },
+            transportContent = { BluetoothDevicesCard() },
         )
     }
 

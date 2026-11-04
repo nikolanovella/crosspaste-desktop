@@ -251,7 +251,7 @@ class DefaultPairingV3UiController(
             displayName = runtimeInfo.getDeviceDisplayName(),
             showPairingCode = handler::showPairingCode,
             toUrl = {
-                buildUrl(HostAndPort(host, runtimeInfo.port))
+                buildUrl(HostAndPort(host, runtimeInfo.port, runtimeInfo.appInstanceId))
             },
         )
     }

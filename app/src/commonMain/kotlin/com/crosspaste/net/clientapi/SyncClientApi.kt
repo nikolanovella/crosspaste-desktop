@@ -37,9 +37,14 @@ class SyncClientApi(
 
     private val logger = KotlinLogging.logger {}
 
-    suspend fun syncInfo(toUrl: URLBuilder.() -> Unit): ClientApiResult =
+    suspend fun syncInfo(toUrl: URLBuilder.() -> Unit): ClientApiResult = syncInfo(3000L, toUrl)
+
+    suspend fun syncInfo(
+        timeout: Long,
+        toUrl: URLBuilder.() -> Unit,
+    ): ClientApiResult =
         request(logger, exceptionHandler, request = {
-            pasteClient.get(urlBuilder = {
+            pasteClient.get(timeout = timeout, urlBuilder = {
                 toUrl()
                 buildUrl("sync", "syncInfo")
             })

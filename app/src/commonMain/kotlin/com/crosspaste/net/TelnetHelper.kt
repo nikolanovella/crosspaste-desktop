@@ -3,6 +3,7 @@ package com.crosspaste.net
 import com.crosspaste.db.sync.HostInfo
 import com.crosspaste.utils.HEADER_APP_INSTANCE_ID
 import com.crosspaste.utils.HostAndPort
+import com.crosspaste.utils.PeerTransportRoutes
 import com.crosspaste.utils.buildUrl
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.statement.*
@@ -88,7 +89,9 @@ class TelnetHelper(
                     hostInfoList.map { hostInfo ->
                         launch(CoroutineName("SwitchHost")) {
                             runCatching {
-                                telnet(hostInfo.hostAddress, port, timeout)?.let { telnetResult ->
+                                val routedPeer = expectedAppInstanceId?.takeIf { PeerTransportRoutes.hasRoute(it) }
+                                val probe = telnet(hostInfo.hostAddress, port, timeout, routedPeer)
+                                probe?.let { telnetResult ->
                                     // Identity filtering happens here, inside the race: a
                                     // reachable-but-mismatched ghost must not win and crowd
                                     // out the real peer that advertised the right identity.
@@ -136,9 +139,10 @@ class TelnetHelper(
         hostAddress: String,
         port: Int,
         timeout: Long = FAST_TIMEOUT,
+        peerId: String? = null,
     ): TelnetResult? =
         runCatching {
-            val hostAndPort = HostAndPort(hostAddress, port)
+            val hostAndPort = HostAndPort(hostAddress, port, peerId)
             // Piggyback our current address onto the probe so the peer learns where to
             // reach us back without waiting for the next mDNS round (#4509 phase 3). We
             // advertise only the local interface(s) on the peer's subnet — the address it

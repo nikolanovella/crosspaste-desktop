@@ -298,7 +298,7 @@ class FilePullService(
 
         val port = syncHandler.currentSyncRuntimeInfo.port
 
-        val hostAndPort = HostAndPort(host, port)
+        val hostAndPort = HostAndPort(host, port, appInstanceId)
         val toUrl: URLBuilder.() -> Unit = {
             buildUrl(hostAndPort)
         }
