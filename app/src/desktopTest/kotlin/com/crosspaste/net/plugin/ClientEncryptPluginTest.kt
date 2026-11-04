@@ -22,6 +22,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -42,9 +43,13 @@ class ClientEncryptPluginTest {
             coEvery { getMessageProcessor(any()) } returns mockProcessor
         }
 
-    private fun createClient(secureStore: SecureStore = mockSecureStore): HttpClient {
+    private fun createClient(
+        secureStore: SecureStore = mockSecureStore,
+        inspectBody: (OutgoingContent) -> Unit = {},
+    ): HttpClient {
         val mockEngine =
             MockEngine { request ->
+                inspectBody(request.body)
                 respond(
                     content = "OK",
                     status = HttpStatusCode.OK,
@@ -58,7 +63,8 @@ class ClientEncryptPluginTest {
     @Test
     fun `encrypt succeeds with ByteArrayContent body`() =
         runBlocking {
-            val client = createClient()
+            val sent = mutableListOf<ByteArray>()
+            val client = createClient(inspectBody = { sent += (it as OutgoingContent.ByteArrayContent).bytes() })
 
             // Should not throw - ByteArrayContent is supported
             val response =
@@ -70,6 +76,25 @@ class ClientEncryptPluginTest {
                 }
 
             assertEquals(HttpStatusCode.OK, response.status)
+            assertContentEquals("""{"key":"value"}""".encodeToByteArray().reversedArray(), sent.single())
+        }
+
+    @Test
+    fun `binary secure requests send transformed bytes to the engine`() =
+        runBlocking {
+            val sent = mutableListOf<ByteArray>()
+            val client = createClient(inspectBody = { sent += (it as OutgoingContent.ByteArrayContent).bytes() })
+            val payload = byteArrayOf(0, 1, 2, 3, 4)
+            client.post("https://localhost/test") {
+                header("targetAppInstanceId", "test-instance")
+                header("secure", "1")
+                setBody(
+                    io.ktor.http.content
+                        .ByteArrayContent(payload, ContentType.Application.OctetStream),
+                )
+            }
+            assertContentEquals(payload.reversedArray(), sent.single())
+            client.close()
         }
 
     @Test

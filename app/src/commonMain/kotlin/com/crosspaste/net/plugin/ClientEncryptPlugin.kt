@@ -32,13 +32,16 @@ class ClientEncryptPlugin(
             context.headers["targetAppInstanceId"]?.let { targetAppInstanceId ->
                 context.headers["secure"]?.let {
                     logger.debug { "client encrypt $targetAppInstanceId" }
-                    when (val body = context.body) {
+                    when (val body = subject) {
                         is OutgoingContent.ByteArrayContent -> {
                             val processor = secureStore.getMessageProcessor(targetAppInstanceId)
                             val bytes = body.bytes()
                             val ciphertextMessageBytes = processor.encrypt(bytes)
-                            context.body =
+                            val encrypted =
                                 ByteArrayContent(ciphertextMessageBytes, contentType = ContentType.Application.Json)
+                            context.body = encrypted
+                            // Engines send the pipeline subject, not a later mutation of builder.body.
+                            proceedWith(encrypted)
                         }
                         is OutgoingContent.NoContent -> {
                             // GET / DELETE etc.: the `secure` header only tells the server to
