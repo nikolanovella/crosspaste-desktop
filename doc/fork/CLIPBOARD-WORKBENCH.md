@@ -170,3 +170,8 @@ tests visible drop targets and viewport insertion boundaries. The full focused
 suite passed 36 tests before the gesture refinement; the final Workbench suite
 passed all 16 tests. The repaired gesture still needs its last live drop test;
 foreground access was interrupted before that test could be completed.
+
+Final portable build run `41826195716` passed on Windows x64, macOS Apple Silicon,
+and macOS Intel, including all 36 focused tests on each platform. Archives retain
+the OS/architecture naming requirement. The new Mac UI is available in those
+artifacts; it has not been installed on the personal Mac by this Windows session.
