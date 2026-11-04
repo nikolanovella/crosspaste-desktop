@@ -2,6 +2,11 @@ name: Clipboard Workbench builds
 
 on:
   workflow_dispatch:
+    inputs:
+      macos_only:
+        description: Build only the two Mac architectures (for runner-capacity retries)
+        type: boolean
+        default: false
   push:
     branches: [feature/clipboard-workbench]
 
@@ -17,13 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: windows-latest
-            package: Windows-x64
-          - runner: macos-26
-            package: macOS-AppleSilicon
-          - runner: macos-15-intel
-            package: macOS-Intel
+        # Alternate macOS pools avoid rebuilding Windows for a queued-runner failure.
+        include: >-
+          ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.macos_only &&
+          '[{"runner":"macos-15","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]' ||
+          '[{"runner":"windows-latest","package":"Windows-x64"},{"runner":"macos-15","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
