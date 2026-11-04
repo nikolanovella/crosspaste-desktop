@@ -55,7 +55,8 @@ fun ApplicationScope.TrayView(windowIcon: Painter) {
         .collectAsState(initial = false)
     val lastVersion by appUpdateService.lastVersion.collectAsState()
 
-    // Clicking the tray icon toggles the search window. Relying on focus loss
+    // macOS/Linux tray clicks toggle search; Windows opens the main app so its
+    // MyFinder header button exposes Devices and settings. Relying on focus loss
     // alone is not enough: KDE Plasma's tray does not take focus away, so a
     // second click must close the window explicitly.
     val toggleSearchWindow: suspend () -> Unit = {
@@ -157,7 +158,11 @@ fun ApplicationScope.TrayView(windowIcon: Painter) {
             tooltip = AppName,
             primaryAction = {
                 mainCoroutineDispatcher.launch {
-                    toggleSearchWindow()
+                    if (platform.isWindows()) {
+                        appWindowManager.showMainWindow(WindowTrigger.TRAY_ICON)
+                    } else {
+                        toggleSearchWindow()
+                    }
                 }
             },
             menuContent = menuContent,
