@@ -39,6 +39,7 @@ class DesktopShortKeysAction(
     private val pasteboardService: PasteboardService,
     private val pasteDao: PasteDao,
     private val pasteSelectionViewModel: PasteSelectionViewModel,
+    private val clipboardWorkbench: com.crosspaste.workbench.ClipboardWorkbench? = null,
 ) : ShortcutKeysAction {
 
     private val logger = KotlinLogging.logger {}
@@ -52,6 +53,22 @@ class DesktopShortKeysAction(
     override val action: (String, NativeKeyEvent) -> Unit = { actionName, event ->
         this.event = event
         when (actionName) {
+            DesktopShortcutKeys.COPY_TOOLS ->
+                mainRunAction("CopyTools", "Open selection copy tools") {
+                    awaitShortcutReleased()
+                    clipboardWorkbench?.openCopyTools()
+                }
+            DesktopShortcutKeys.QUICK_PASTE ->
+                mainRunAction("QuickPaste", "Open quick paste panel") {
+                    awaitShortcutReleased()
+                    appWindowManager.saveCurrentActiveAppInfo()
+                    appWindowManager.switchPastePanelWindow(WindowTrigger.SHORTCUT)
+                }
+            DesktopShortcutKeys.CLIPBOARD_WORKBENCH ->
+                mainRunAction("ClipboardWorkbench", "Open clipboard workbench") {
+                    awaitShortcutReleased()
+                    clipboardWorkbench?.openEditor(captureTarget = true)
+                }
             PASTE_PLAIN_TEXT -> pastePlainText()
             PASTE_PRIMARY_TYPE -> pastePrimaryType()
             PASTE_LOCAL_LAST -> pasteLast(true)
@@ -132,6 +149,16 @@ class DesktopShortKeysAction(
             actionName = "HideWindow",
             actionLogMessage = "Hide window",
         ) {
+            if (clipboardWorkbench?.state?.value?.mode != null &&
+                clipboardWorkbench.state.value.mode != com.crosspaste.workbench.ClipboardWorkbenchMode.CLOSED
+            ) {
+                clipboardWorkbench.close()
+                return@mainRunAction
+            }
+            if (appWindowManager.getCurrentPastePanelWindowInfo().show) {
+                appWindowManager.hidePastePanelWindow()
+                return@mainRunAction
+            }
             // Like any popup, the open type menu goes first and the search window stays. This
             // shortcut is the menu's only Esc owner: its popup takes no focus, and handling Esc in
             // Compose as well would close the menu and then, seeing it closed, hide the window.
@@ -160,6 +187,11 @@ class DesktopShortKeysAction(
             actionName = "PastePlainText",
             actionLogMessage = "Paste plain text",
         ) {
+            if (clipboardWorkbench != null) {
+                awaitShortcutReleased()
+                clipboardWorkbench.pastePlainFromSystem()
+                return@mainRunAction
+            }
             currentPaste.getCurrentPaste()?.let { pasteData ->
                 withContext(ioDispatcher) {
                     pasteData.getPasteAppearItems().firstOrNull { it is PasteText }?.let {

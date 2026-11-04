@@ -1,0 +1,56 @@
+name: Clipboard Workbench builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/clipboard-workbench]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workbench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            package: Windows-x64
+          - runner: macos-26
+            package: macOS-AppleSilicon
+          - runner: macos-15-intel
+            package: macOS-Intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Check style, run regression tests, and build portable app
+        shell: bash
+        run: |
+          ./gradlew ktlintCheck
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.workbench.*' --tests 'com.crosspaste.listener.*' --tests 'com.crosspaste.ui.model.PastePanelViewModelTest'
+          ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
+      - name: Upload platform app
+        uses: actions/upload-artifact@v6
+        with:
+          name: CrossPaste-Workbench-${{ matrix.package }}
+          path: app/build/compose/binaries/main/app/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Workbench-tests-${{ matrix.package }}
+          path: app/build/test-results/desktopTest/
+          if-no-files-found: ignore
+          retention-days: 14

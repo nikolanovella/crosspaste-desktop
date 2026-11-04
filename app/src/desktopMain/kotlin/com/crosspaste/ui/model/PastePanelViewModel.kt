@@ -123,5 +123,8 @@ class PastePanelViewModel(
         }
         appWindowManager.toPaste()
         _highlightedId.value = pasteData.id
+        if (appWindowManager.getCurrentPastePanelWindowInfo().trigger == com.crosspaste.app.WindowTrigger.SHORTCUT) {
+            appWindowManager.hidePastePanelWindow()
+        }
     }
 }

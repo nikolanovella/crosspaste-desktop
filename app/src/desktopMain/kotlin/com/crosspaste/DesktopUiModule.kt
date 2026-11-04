@@ -89,8 +89,9 @@ fun desktopUiModule(): Module =
         single<NativeKeyListener> { get<DesktopShortcutKeysListener>() }
         single<NativeMouseListener> { get<DesktopAppSize>() }
         single<ShortcutKeys> { DesktopShortcutKeys(get(), get(), get()) }
+        single { com.crosspaste.workbench.ClipboardWorkbench(get(), get(), get(), get(), get(), get(), get(), get()) }
         single<ShortcutKeysAction> {
-            DesktopShortKeysAction(get(), get(), lazy { get() }, get(), get(), get(), get(), get(), get())
+            DesktopShortKeysAction(get(), get(), lazy { get() }, get(), get(), get(), get(), get(), get(), get())
         }
         single<ShortcutKeysListener> { get<DesktopShortcutKeysListener>() }
         single<ShortcutKeysLoader> { DesktopShortcutKeysLoader(get(), get()) }

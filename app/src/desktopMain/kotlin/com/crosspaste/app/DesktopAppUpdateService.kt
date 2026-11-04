@@ -60,6 +60,8 @@ class DesktopAppUpdateService(
         }
 
     override suspend fun checkForUpdate() {
+        // Preview installers must not replace custom features with upstream builds.
+        if (java.lang.Boolean.getBoolean("crosspaste.workbenchFork")) return
         val last = readLastVersion()
         _lastVersion.value = last
         if (last != null && last > currentVersion.value) {

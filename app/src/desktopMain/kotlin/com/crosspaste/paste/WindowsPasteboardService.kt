@@ -15,6 +15,7 @@ import com.crosspaste.utils.cpuDispatcher
 import com.crosspaste.utils.getControlUtils
 import com.crosspaste.utils.ioDispatcher
 import com.crosspaste.utils.namedScope
+import com.crosspaste.workbench.platform.ClipboardCaptureGate
 import com.sun.jna.platform.win32.Kernel32
 import com.sun.jna.platform.win32.WinDef.HWND
 import com.sun.jna.platform.win32.WinDef.LPARAM
@@ -71,7 +72,11 @@ class WindowsPasteboardService(
         ClipboardEventPipeline<Transferable>(
             currentSequence = { User32.INSTANCE.GetClipboardSequenceNumber() },
             takeSnapshot = { event ->
-                if (sourceExclusionService.isExcluded(event.source)) {
+                if (ClipboardCaptureGate
+                        .ignores(event.sequence)
+                ) {
+                    null
+                } else if (sourceExclusionService.isExcluded(event.source)) {
                     logger.debug { "Ignoring excluded source: ${event.source}" }
                     null
                 } else {

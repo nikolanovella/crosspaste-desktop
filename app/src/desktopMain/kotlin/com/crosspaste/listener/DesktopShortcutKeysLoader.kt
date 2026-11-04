@@ -14,6 +14,7 @@ class DesktopShortcutKeysLoader(
     platform: Platform,
     private val shortcutKeysAction: ShortcutKeysAction,
 ) : ShortcutKeysLoader {
+    private val consumeWorkbenchShortcuts = !platform.isLinux()
     private val keyboardKeys = getDesktopKeyboardKeys(platform)
 
     private val comparator = keyboardKeys.getComparator()
@@ -80,6 +81,13 @@ class DesktopShortcutKeysLoader(
                     }.let { match ->
                         if (match) {
                             if (entry.key in reservedConflictKeys) {
+                                return@EventConsumer
+                            }
+                            if (consumeWorkbenchShortcuts &&
+                                entry.key in com.crosspaste.workbench.platform.ClipboardShortcutConsumption.actions &&
+                                !com.crosspaste.workbench.platform.ClipboardShortcutConsumption
+                                    .press(event)
+                            ) {
                                 return@EventConsumer
                             }
                             shortcutKeysAction.action(entry.key, event)

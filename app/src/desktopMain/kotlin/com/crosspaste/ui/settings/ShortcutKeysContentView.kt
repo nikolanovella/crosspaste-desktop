@@ -86,6 +86,12 @@ fun ShortcutKeysContentView() {
 
         item {
             SettingSectionCard {
+                ShortcutKeyRow(com.crosspaste.listener.DesktopShortcutKeys.COPY_TOOLS)
+                HorizontalDivider()
+                ShortcutKeyRow(com.crosspaste.listener.DesktopShortcutKeys.QUICK_PASTE)
+                HorizontalDivider()
+                ShortcutKeyRow(com.crosspaste.listener.DesktopShortcutKeys.CLIPBOARD_WORKBENCH)
+                HorizontalDivider()
                 ShortcutKeyRow(SHOW_MAIN)
                 HorizontalDivider()
                 ShortcutKeyRow(SHOW_SEARCH)

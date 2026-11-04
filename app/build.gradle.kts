@@ -305,6 +305,9 @@ private fun initJvmArgs(
     // Add system properties that need to be set for all platforms
     val appEnv = project.findProperty("appEnv")?.toString() ?: "DEVELOPMENT"
     val globalListener = project.findProperty("globalListener")?.toString() ?: "true"
+    if (project.findProperty("workbenchFork")?.toString() == "true") {
+        jvmArgs(arrayOf("-Dcrosspaste.workbenchFork=true"))
+    }
     jvmArgs(
         arrayOf(
             "-DappEnv=$appEnv",

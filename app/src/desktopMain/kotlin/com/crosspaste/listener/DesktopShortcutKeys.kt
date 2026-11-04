@@ -30,6 +30,9 @@ class DesktopShortcutKeys(
         const val PASTE_PRIMARY_TYPE = "paste_primary_type"
         const val PASTE_LOCAL_LAST = "paste_local_last"
         const val PASTE_REMOTE_LAST = "paste_remote_last"
+        const val COPY_TOOLS = "copy_tools"
+        const val QUICK_PASTE = "quick_paste"
+        const val CLIPBOARD_WORKBENCH = "clipboard_workbench"
         const val SHOW_MAIN = "show_main"
 
         // Currently, this action is not only used to show the search window
@@ -85,6 +88,9 @@ class DesktopShortcutKeys(
                         properties.setProperty(key.toString(), platformProperties.getProperty(key.toString()))
                     }
                 }
+                if (properties.getProperty("workbench_shortcuts_v1") != "true") {
+                    migrateWorkbenchShortcuts(properties, platformProperties)
+                }
                 writeProperties(properties, shortcutKeysPropertiesPath)
             }
 
@@ -132,4 +138,14 @@ class DesktopShortcutKeys(
             logger.error(e) { "Failed to update shortcut keys" }
         }
     }
+}
+
+internal fun migrateWorkbenchShortcuts(
+    properties: Properties,
+    defaults: Properties,
+) {
+    for ((key, oldDefault) in mapOf("paste_plain_text" to "", "show_main" to "42+3675+51")) {
+        if (properties.getProperty(key) == oldDefault) properties.setProperty(key, defaults.getProperty(key))
+    }
+    properties.setProperty("workbench_shortcuts_v1", "true")
 }

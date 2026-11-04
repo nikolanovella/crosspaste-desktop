@@ -2,7 +2,7 @@
 >
 > [Start here](FORK.md) · [Code map](doc/fork/CODE-MAP.md) · [Build and test](doc/fork/DEVELOPMENT.md) · [Official app downloads](https://crosspaste.com/en/download)
 >
-> Initial cleanup is documentation-only. App behavior is unchanged, and this fork has no custom release binaries yet. The original project overview follows below.
+> The [Clipboard Workbench](doc/fork/CLIPBOARD-WORKBENCH.md) adds paired Windows/Mac shortcuts, file-name and Markdown-tree copy tools, and an editor that preserves originals. This is a development preview; platform build artifacts are separate from official releases. The original project overview follows below.
 
 ---
 

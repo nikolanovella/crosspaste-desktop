@@ -18,13 +18,12 @@ Personal Windows–Mac clipboard workspace, forked from
 
 - Fork created on November 4, 2026, from upstream commit
   `3ff3e5fc` (`use the local paste id when writing a received non-file paste to the pasteboard`).
-- Initial cleanup organizes documentation and explains the extension points.
-- Clipboard behavior, pairing, encryption, native integrations, and storage are unchanged.
+- The [Clipboard Workbench](doc/fork/CLIPBOARD-WORKBENCH.md) adds paired copy/paste shortcuts, three file-copy tools, and a non-destructive text/Markdown block editor.
+- Pairing, encryption, and the cross-device protocol retain the upstream implementations.
 - No custom installer or fork release has been published. Forking source does not
   copy upstream release assets; use the official downloads while establishing a
   working Windows–Mac baseline.
-- No successful local application build or cross-device pairing test is claimed
-  by this documentation-only change.
+- JVM compilation and focused regression tests have passed on Windows. Native Mac runtime and cross-device pairing remain separate verification steps.
 
 ## Working layout
 

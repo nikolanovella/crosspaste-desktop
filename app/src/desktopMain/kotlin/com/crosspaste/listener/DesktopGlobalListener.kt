@@ -28,6 +28,10 @@ class DesktopGlobalListener(
         if (systemProperty.get("globalListener", false.toString()).toBoolean()) {
             runCatching {
                 if (appLaunchState.accessibilityPermissions && !isRegistered()) {
+                    GlobalScreen.setEventDispatcher(
+                        com.github.kwhat.jnativehook.dispatcher
+                            .VoidDispatchService(),
+                    )
                     GlobalScreen.registerNativeHook()
                     GlobalScreen.addNativeKeyListener(shortcutKeysListener)
                     GlobalScreen.addNativeMouseListener(mouseListener)

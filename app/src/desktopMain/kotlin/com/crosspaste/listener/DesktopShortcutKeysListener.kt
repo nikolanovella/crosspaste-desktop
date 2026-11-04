@@ -113,6 +113,8 @@ class DesktopShortcutKeysListener(
 
     override fun nativeKeyReleased(nativeEvent: NativeKeyEvent) {
         val event = linuxSuperKeyState?.normalize(nativeEvent) ?: nativeEvent
+        com.crosspaste.workbench.platform.ClipboardShortcutConsumption
+            .release(event)
         heldKeyCodes.update { it - event.keyCode }
         // The injected paste keystroke releasing marks the end of our own simulation:
         // lift suppression now rather than waiting for the safety timeout (issue #4500).

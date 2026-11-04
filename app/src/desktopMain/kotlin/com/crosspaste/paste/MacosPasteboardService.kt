@@ -8,6 +8,7 @@ import com.crosspaste.platform.macos.api.MacosApi
 import com.crosspaste.sound.SoundService
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.utils.getControlUtils
+import com.crosspaste.workbench.platform.ClipboardCaptureGate
 import com.sun.jna.ptr.IntByReference
 import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -87,6 +88,8 @@ class MacosPasteboardService(
         changeCount = currentChangeCount
 
         when {
+            ClipboardCaptureGate
+                .ignores(currentChangeCount) -> Unit
             firstChange && config.enableSkipPreLaunchPasteboardContent -> {
                 logger.debug { "Ignoring prior pasteboard" }
             }
