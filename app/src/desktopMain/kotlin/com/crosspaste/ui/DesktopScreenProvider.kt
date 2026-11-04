@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ import androidx.navigation.toRoute
 import com.crosspaste.platform.Platform
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.SyncManager
+import com.crosspaste.sync.journal.ClipboardInvitationsCard
 import com.crosspaste.transport.bluetooth.BluetoothDevicesCard
 import com.crosspaste.ui.base.ShareContentView
 import com.crosspaste.ui.devices.DesktopPromoteGuide
@@ -308,7 +310,12 @@ class DesktopScreenProvider(
     private fun DevicesScreen() {
         DevicesContentView(
             guideContent = { DesktopPromoteGuide() },
-            transportContent = { BluetoothDevicesCard() },
+            transportContent = {
+                Column {
+                    ClipboardInvitationsCard()
+                    BluetoothDevicesCard()
+                }
+            },
         )
     }
 

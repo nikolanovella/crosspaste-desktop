@@ -78,6 +78,7 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.transport.bluetooth.BluetoothTransportController
 import com.crosspaste.ui.devices.DefaultPairingV3UiController
@@ -98,6 +99,7 @@ fun desktopNetworkModule(
 ): Module =
     module {
         single { ClipboardPeerAuthentication(get<AppInfo>().appInstanceId, get()) }
+        single { ClipboardInvitationService(get(), get<AppInfo>().appInstanceId, get(), get()) }
         single { BluetoothTransportController(get(), get(), get(), get(), get(), lazy { get() }, get()) }
         // region CLI
         single<CliEndpointFile> { CliEndpointFile(get(), devCliEndpointPointerPath(get())) }
@@ -237,6 +239,7 @@ fun desktopNetworkModule(
                 userDataPathProvider = get(),
                 wsMessageHandler = get(),
                 clipboardPeerAuth = get(),
+                clipboardInvitations = get(),
                 wsSessionManager = get(),
             )
         }

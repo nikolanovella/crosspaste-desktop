@@ -1,8 +1,11 @@
 package com.crosspaste.net.routing
 
+import com.crosspaste.sync.journal.ClipboardInvitationService
+import com.crosspaste.sync.journal.ClipboardInvitationStatus
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerOperation
 import com.crosspaste.sync.journal.ClipboardPeerProof
+import com.crosspaste.sync.journal.VerifiedClipboardPeerRequest
 import com.crosspaste.utils.HEADER_APP_INSTANCE_ID
 import com.crosspaste.utils.HEADER_TARGET_APP_INSTANCE_ID
 import io.ktor.http.HttpHeaders
@@ -29,6 +32,7 @@ data class ClipboardPeerIdentity(
 fun Routing.clipboardIdentityRouting(
     localDevice: String,
     authentication: ClipboardPeerAuthentication,
+    invitations: ClipboardInvitationService? = null,
     identity: suspend () -> ClipboardPeerIdentity,
 ) {
     fun ApplicationCall.peer(): String? =
@@ -86,5 +90,41 @@ fun Routing.clipboardIdentityRouting(
         } catch (_: Exception) {
             call.respond(HttpStatusCode.Unauthorized)
         }
+    }
+
+    suspend fun invitationRequest(
+        call: ApplicationCall,
+        operation: ClipboardPeerOperation,
+        action: suspend (VerifiedClipboardPeerRequest) -> ClipboardInvitationStatus,
+    ) {
+        val peer = call.peer()
+        if (peer == null) {
+            call.respond(HttpStatusCode.Unauthorized)
+            return
+        }
+        val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+        if (length != null && length !in 1..32768) {
+            call.respond(HttpStatusCode.PayloadTooLarge)
+            return
+        }
+        try {
+            val verified = authentication.verify(peer, call.receive<ClipboardPeerProof>(), operation)
+            if (verified == null) {
+                call.respond(HttpStatusCode.Unauthorized)
+                return
+            }
+            call.respond(authentication.reply(verified, Json.encodeToString(action(verified))))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            call.respond(HttpStatusCode.Unauthorized)
+        }
+    }
+
+    invitations?.let { service ->
+        post("/clipboard/invitation") { invitationRequest(call, ClipboardPeerOperation.PROPOSE_JOIN, service::receive) }
+        post(
+            "/clipboard/invitation/status",
+        ) { invitationRequest(call, ClipboardPeerOperation.JOIN_STATUS, service::status) }
     }
 }

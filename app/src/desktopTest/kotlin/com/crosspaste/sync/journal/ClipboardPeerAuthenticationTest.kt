@@ -5,6 +5,7 @@ import com.crosspaste.secure.SecureMessageProcessor
 import com.crosspaste.secure.SecureStore
 import com.crosspaste.utils.CryptographyUtils
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -28,6 +29,8 @@ internal suspend fun clipboardPeerFixture(
     val bProcessor = SecureMessageProcessor(bKeys.cryptKeyPair.privateKey, aKeys.cryptKeyPair.publicKey)
     val aStore = mockk<SecureStore>()
     val bStore = mockk<SecureStore>()
+    every { aStore.secureKeyPair } returns aKeys
+    every { bStore.secureKeyPair } returns bKeys
     coEvery { aStore.existCryptPublicKey(any()) } returns false
     coEvery { bStore.existCryptPublicKey(any()) } returns false
     coEvery { aStore.existCryptPublicKey("b") } returns true

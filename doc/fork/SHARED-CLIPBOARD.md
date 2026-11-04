@@ -87,6 +87,22 @@ unexplained permanent-storage policy. External file references are not snapshots
 retaining their history row does not protect a user-owned file from later edits,
 moves or deletion, nor another row's managed files referenced indirectly.
 
+## Explicit invitation approval
+
+`ClipboardInvitationService` stages authenticated invitations from already paired
+peers. Proposals and status requests cannot approve membership remotely. The
+receiving device has a themed card in Devices with Join clipboard and Not now;
+only its local Join action commits the proposed public keys in one transaction.
+Conflicting keys roll back the entire enrollment and existing contribution
+preferences are preserved. Pending offers expire after ten minutes. After a
+restart, an identical offer can acknowledge consent already saved in SQL, but
+adding any new member still requires approval.
+
+The receiving flow and encrypted HTTP consent boundary are tested. The outgoing
+invitation controller and controls are not connected yet, and the running app has
+not been updated with this experimental UI. Membership propagation to additional
+existing members also remains to be implemented.
+
 ## Required before live use
 
 - Connect the approved SQL membership resolver to the live invitation and sync
@@ -101,7 +117,7 @@ moves or deletion, nor another row's managed files referenced indirectly.
 - Separate historical catch-up from the live OS clipboard selection.
 - Preserve independent contribute/use settings: received history can remain
   available while automatic clipboard replacement is off.
-- Add Join clipboard/setup/status to the existing themed UI. Reuse existing
+- Finish outgoing invitation/setup/status controls in the existing themed UI. Reuse existing
   Wi-Fi trust for Bluetooth address exchange, while retaining normal OS pairing
   and permission consent.
 - Verify real Windows/Mac offline, reconnection, edit and clipboard flows.

@@ -68,4 +68,50 @@ class ClipboardMembershipStore(
         serializer.decodeSignPublicKey(bytes)
         return codecs.base64Encode(bytes)
     }
+
+    fun memberKeys(clipboard: String): List<ClipboardMemberKey> =
+        queries.getMembers(clipboard).executeAsList().map { ClipboardMemberKey(it.deviceId, it.signingPublicKey) }
+
+    /** Called only after local acceptance of an authenticated invitation. All keys commit together. */
+    suspend fun joinApprovedClipboard(
+        clipboard: String,
+        localDevice: String,
+        localKey: ECDSA.PublicKey,
+        members: List<ClipboardMemberKey>,
+        contributeLocal: Boolean,
+    ) {
+        require(clipboard.isNotBlank() && clipboard.length <= 256 && localDevice.isNotBlank())
+        require(members.size in 1..32 && members.map { it.deviceId }.toSet().size == members.size)
+        val own = encodeMemberKey(localKey)
+        val approved =
+            members
+                .associate { member ->
+                    require(
+                        member.deviceId.isNotBlank() &&
+                            member.deviceId.length <= 256 &&
+                            member.signingPublicKey.length <= 512,
+                    )
+                    member.deviceId to
+                        encodeMemberKey(serializer.decodeSignPublicKey(codecs.base64Decode(member.signingPublicKey)))
+                }.toMutableMap()
+        require(approved[localDevice] == null || approved[localDevice] == own) { "Invitation replaces local identity" }
+        approved[localDevice] = own
+        require(approved.size <= 32) { "Clipboard device limit reached" }
+        database.transaction {
+            val existingWorkspace = queries.getWorkspace(clipboard).executeAsOneOrNull()
+            if (existingWorkspace == null) {
+                queries.putWorkspace(clipboard, true, contributeLocal)
+            } else {
+                require(existingWorkspace.enabled) { "Existing clipboard is disabled" }
+            }
+            approved.forEach { (device, key) ->
+                val previous = queries.getMember(clipboard, device).executeAsOneOrNull()
+                if (previous == null) {
+                    queries.insertMember(clipboard, device, key)
+                } else {
+                    require(previous.signingPublicKey == key) { "Invitation replaces an approved identity" }
+                }
+            }
+        }
+    }
 }

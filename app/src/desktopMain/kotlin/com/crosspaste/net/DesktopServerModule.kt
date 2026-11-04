@@ -24,6 +24,7 @@ import com.crosspaste.secure.SecureStore
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.PendingKeyExchangeStore
 import com.crosspaste.sync.PushSessionManager
+import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.utils.getCodecsUtils
 import io.ktor.server.application.*
@@ -57,6 +58,7 @@ class DesktopServerModule(
     wsMessageHandler: WsMessageHandler,
     wsSessionManager: WsSessionManager,
     private val clipboardPeerAuth: ClipboardPeerAuthentication? = null,
+    private val clipboardInvitations: ClipboardInvitationService? = null,
 ) : DefaultServerModule(
         appControl,
         appInfo,
@@ -108,7 +110,14 @@ class DesktopServerModule(
             }
             super.installModules()()
             clipboardPeerAuth?.let { authentication ->
-                routing { clipboardIdentityRouting(clipboardLocalDevice, authentication, clipboardIdentity) }
+                routing {
+                    clipboardIdentityRouting(
+                        clipboardLocalDevice,
+                        authentication,
+                        invitations = clipboardInvitations,
+                        identity = clipboardIdentity,
+                    )
+                }
             }
         }
 }

@@ -11,7 +11,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
-enum class ClipboardPeerOperation { IDENTITY, PROPOSE_JOIN, ACCEPT_JOIN, HISTORY, PAYLOAD }
+enum class ClipboardPeerOperation { IDENTITY, PROPOSE_JOIN, ACCEPT_JOIN, JOIN_STATUS, HISTORY, PAYLOAD }
 
 @Serializable
 data class ClipboardPeerRequest(
@@ -41,6 +41,12 @@ data class ClipboardPeerResponse(
 
 class VerifiedClipboardPeerRequest internal constructor(
     val request: ClipboardPeerRequest,
+)
+
+class VerifiedClipboardPeerReply internal constructor(
+    val peer: String,
+    val request: ClipboardPeerRequest,
+    val payload: String,
 )
 
 /** Authenticates existing paired peers. Successful proof never grants clipboard membership. */
@@ -140,6 +146,13 @@ class ClipboardPeerAuthentication(
         if (!secureStore.getMessageProcessor(peer).verifyAuthentication(responseBytes(response), code)) return null
         return response.payload
     }
+
+    suspend fun verifiedReply(
+        peer: String,
+        request: ClipboardPeerRequest,
+        response: ClipboardPeerResponse,
+    ): VerifiedClipboardPeerReply? =
+        verifyReply(peer, request, response)?.let { VerifiedClipboardPeerReply(peer, request, it) }
 
     private fun validRequest(request: ClipboardPeerRequest): Boolean =
         listOf(request.sender, request.target, request.clipboard).all { it.isNotBlank() && it.length <= 256 } &&
