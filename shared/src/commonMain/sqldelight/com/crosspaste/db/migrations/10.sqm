@@ -1,0 +1,15 @@
+CREATE TABLE SharedClipboardRetentionEntity (
+    clipboardId TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    PRIMARY KEY (clipboardId, localPasteId)
+);
+
+CREATE INDEX SharedClipboardRetentionPaste ON SharedClipboardRetentionEntity(localPasteId);
+
+INSERT OR IGNORE INTO SharedClipboardRetentionEntity(clipboardId, localPasteId)
+SELECT clipboardId, localPasteId FROM SharedClipboardCaptureEntity;
+
+CREATE TRIGGER SharedClipboardCaptureRetain AFTER INSERT ON SharedClipboardCaptureEntity BEGIN
+    INSERT OR IGNORE INTO SharedClipboardRetentionEntity(clipboardId, localPasteId)
+    VALUES (new.clipboardId, new.localPasteId);
+END;

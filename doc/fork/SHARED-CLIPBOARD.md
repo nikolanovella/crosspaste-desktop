@@ -49,14 +49,25 @@ initial file-snapshot adapter, SQL storage has no 32 MB snapshot-file cap. The
 current reconciliation projection still loads history in memory and needs further
 scaling work before claiming large-history performance.
 
+Migration 10 adds per-clipboard retention references when a capture is enqueued,
+and backfills pending captures from the earlier schema. Ordinary local-history
+cleanup leaves a retained row soft-deleted and its managed files intact. Queue
+acknowledgement does not release that reference. Cleanup can reclaim bytes only
+after every owning clipboard explicitly releases its reference. Global deletion
+and retention policy still need UI/lifecycle integration; this must not become an
+unexplained permanent-storage policy. External file references are not snapshots:
+retaining their history row does not protect a user-owned file from later edits,
+moves or deletion, nor another row's managed files referenced indirectly.
+
 ## Required before live use
 
 - Connect explicitly approved clipboard membership to the signature-verification
   resolver. Authenticated transport alone does not establish that membership.
 - Wire the capture consumer into the app lifecycle after payload retention and
   approved membership are ready; finish edits/deletions and incoming materialization.
-- Retain file payloads referenced by pending captures before enabling capture in
-  the product; preserving metadata alone does not prevent file cleanup.
+- Finish immutable snapshots of external/indirect file references and safe global
+  reference release before enabling capture in the product. Managed owned-file
+  retention is in source, but metadata alone does not protect external files.
 - Transfer and verify missing payloads separately from journal metadata.
 - Drain missing batches across reconnects, including Bluetooth transport.
 - Separate historical catch-up from the live OS clipboard selection.

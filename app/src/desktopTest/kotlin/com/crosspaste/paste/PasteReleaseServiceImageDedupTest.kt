@@ -27,6 +27,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
 import okio.Path.Companion.toOkioPath
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
@@ -153,7 +154,7 @@ class PasteReleaseServiceImageDedupTest {
                     pasteItemReader = pasteItemReader,
                     searchContentService = searchContentService,
                     taskSubmitter = taskSubmitter,
-                    userDataPathProvider = mockk(relaxed = true),
+                    userDataPathProvider = userDataPathProvider,
                 )
             service =
                 PasteReleaseService(
@@ -175,6 +176,58 @@ class PasteReleaseServiceImageDedupTest {
 
     private fun newFixture(userDataPathProvider: UserDataPathProvider = mockk(relaxed = true)): Fixture =
         Fixture().apply { init(appInfo, searchContentService, userDataPathProvider) }
+
+    @Test
+    fun `shared managed bytes survive local cleanup and capture acknowledgement until all references release`(
+        @TempDir tempDir: File,
+    ) = runTest {
+        val storage = File(tempDir, "storage")
+        val fixture = newFixture(userDataPathProvider(storage))
+        val file =
+            File(storage, "images/img/a.png").also {
+                it.parentFile.mkdirs()
+                it.writeText("original bytes")
+            }
+        val id = fixture.createLoadedRecord(imageItem(), PasteType.IMAGE_TYPE, DateUtils.nowEpochMilliseconds())
+        val queries = fixture.database.sharedClipboardDatabaseQueries
+        queries.putWorkspace("one", true, true)
+        queries.putWorkspace("two", true, true)
+        queries.enqueueLoadedLocalCapture(id)
+        fixture.database.pasteDatabaseQueries.markDeletePasteData(listOf(id))
+        fixture.pasteDao.deletePasteData(id)
+        assertEquals("original bytes", file.readText())
+        assertNotNull(fixture.pasteDao.getDeletePasteData(id))
+        assertNull(fixture.pasteDao.getLoadedPasteDataBlock(id))
+        queries.completeCapture("one", id)
+        queries.completeCapture("two", id)
+        fixture.pasteDao.deletePasteData(id)
+        assertEquals("original bytes", file.readText())
+        queries.releaseRetention("one", id)
+        fixture.pasteDao.deletePasteData(id)
+        assertTrue(file.exists())
+        queries.releaseRetention("two", id)
+        fixture.pasteDao.deletePasteData(id)
+        assertTrue(!file.exists())
+        assertNull(fixture.pasteDao.getDeletePasteData(id))
+    }
+
+    @Test
+    fun `unjoined managed files keep their original cleanup behavior`(
+        @TempDir tempDir: File,
+    ) = runTest {
+        val storage = File(tempDir, "storage")
+        val fixture = newFixture(userDataPathProvider(storage))
+        val file =
+            File(storage, "images/img/a.png").also {
+                it.parentFile.mkdirs()
+                it.writeText("ordinary bytes")
+            }
+        val id = fixture.createLoadedRecord(imageItem(), PasteType.IMAGE_TYPE, DateUtils.nowEpochMilliseconds())
+        fixture.database.pasteDatabaseQueries.markDeletePasteData(listOf(id))
+        fixture.pasteDao.deletePasteData(id)
+        assertTrue(!file.exists())
+        assertNull(fixture.pasteDao.getDeletePasteData(id))
+    }
 
     @Test
     fun `joined clipboard captures completed local content durably before history cleanup`() =

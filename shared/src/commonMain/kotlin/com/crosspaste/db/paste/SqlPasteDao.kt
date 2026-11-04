@@ -233,6 +233,11 @@ class SqlPasteDao(
 
     override suspend fun deletePasteData(id: Long) {
         withContext(ioDispatcher) {
+            // Captured/shared payloads remain available after a row leaves the local history UI.
+            // A shared-history owner must explicitly release every reference before reclaiming bytes.
+            if (database.sharedClipboardDatabaseQueries.isPasteRetained(id).executeAsOne()) {
+                return@withContext
+            }
             getDeletePasteData(id)?.let {
                 it.clear(userDataPathProvider)
                 database.transaction {

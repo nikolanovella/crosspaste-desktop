@@ -65,6 +65,9 @@ jobs:
           ./gradlew :app:desktopTest --tests 'com.crosspaste.transport.bluetooth.*' --tests 'com.crosspaste.utils.PeerTransportRoutesTest' --tests 'com.crosspaste.net.TelnetHelperTest' --tests 'com.crosspaste.sync.SyncResolverTest' --tests 'com.crosspaste.sync.GeneralSyncManagerTest' -PintegrationTests
           mkdir -p app/build/verification/bluetooth
           cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/bluetooth/
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.sync.journal.*' --tests 'com.crosspaste.paste.PasteReleaseService*Test' --tests 'com.crosspaste.task.DeletePasteTaskExecutorTest' -PintegrationTests
+          mkdir -p app/build/verification/shared-clipboard
+          cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/shared-clipboard/
           ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
       - name: Archive portable app with executable permissions
         shell: bash

@@ -43,6 +43,20 @@ CREATE TABLE SharedClipboardPayloadEntity (
     PRIMARY KEY (clipboardId, contentHash)
 );
 
+-- References outlive the capture queue: normal history cleanup cannot erase shared file bytes.
+CREATE TABLE SharedClipboardRetentionEntity (
+    clipboardId TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    PRIMARY KEY (clipboardId, localPasteId)
+);
+
+CREATE INDEX SharedClipboardRetentionPaste ON SharedClipboardRetentionEntity(localPasteId);
+
+CREATE TRIGGER SharedClipboardCaptureRetain AFTER INSERT ON SharedClipboardCaptureEntity BEGIN
+    INSERT OR IGNORE INTO SharedClipboardRetentionEntity(clipboardId, localPasteId)
+    VALUES (new.clipboardId, new.localPasteId);
+END;
+
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
 VALUES (?, ?, ?);
@@ -84,3 +98,9 @@ INSERT INTO SharedClipboardPayloadEntity VALUES (?, ?, ?);
 
 getPayloadCount:
 SELECT count(*) FROM SharedClipboardPayloadEntity WHERE clipboardId = ?;
+
+isPasteRetained:
+SELECT EXISTS(SELECT 1 FROM SharedClipboardRetentionEntity WHERE localPasteId = ?);
+
+releaseRetention:
+DELETE FROM SharedClipboardRetentionEntity WHERE clipboardId = ? AND localPasteId = ?;
