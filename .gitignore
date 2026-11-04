@@ -44,6 +44,7 @@ output*/
 **/composeResources/**/.claude/
 /docs/superpowers/
 web/dist/
+web/ios-dist/
 scheduled_tasks.lock
 skills-lock.json
 

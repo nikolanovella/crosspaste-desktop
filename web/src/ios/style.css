@@ -1,0 +1,16 @@
+* { box-sizing: border-box; }
+body { margin: 0; color: #f9fafb; background: #111827; font: 16px -apple-system, BlinkMacSystemFont, sans-serif; }
+.app { max-width: 560px; min-height: 100vh; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 18px max(20px, env(safe-area-inset-bottom)); }
+header { display: flex; align-items: center; gap: 12px; margin: 8px 0 24px; }
+header h1 { margin: 0; font-size: 21px; } header p, .card p { color: #9ca3af; margin: 4px 0 0; font-size: 14px; line-height: 1.45; }
+.mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 14px; background: #2563eb; font-weight: 700; }
+.dot { margin-left: auto; width: 10px; height: 10px; border-radius: 50%; background: #6b7280; } .dot.on { background: #34d399; }
+.card { border: 1px solid #374151; background: #1f2937; border-radius: 18px; padding: 18px; margin-bottom: 14px; }
+.card h2 { font-size: 18px; margin: 0 0 8px; }
+label { display: block; margin-top: 16px; color: #d1d5db; font-size: 13px; }
+input, textarea { display: block; width: 100%; color: #f9fafb; background: #111827; border: 1px solid #4b5563; border-radius: 11px; padding: 13px; font: inherit; margin-top: 7px; outline: none; }
+input:focus, textarea:focus { border-color: #60a5fa; } textarea { min-height: 90px; resize: vertical; }
+button { width: 100%; border: 0; border-radius: 11px; padding: 14px; margin-top: 14px; color: white; background: #2563eb; font: inherit; font-weight: 600; }
+button:disabled { opacity: .45; } button.secondary { color: #dbeafe; background: #374151; }
+.pin { font-size: 34px; letter-spacing: 8px; text-align: center; font-variant-numeric: tabular-nums; padding: 18px; margin: 16px 0; border-radius: 12px; background: #111827; }
+.message { color: #bfdbfe; line-height: 1.45; } footer { text-align: center; color: #6b7280; font-size: 12px; padding: 12px 0; }

@@ -1,11 +1,31 @@
 # CrossPaste iOS companion
 
-This directory contains the native iPhone client for the CrossPaste fork. It is
-kept separate from the Compose Desktop app and is built with XcodeGen and Xcode.
+The iPhone client lives here as a native SwiftUI shell, with the pairing and
+sync UI bundled from `web/src/ios`. It uses CrossPaste's existing v2 SAS
+pairing, key storage, secure WebSocket authentication, and paste-data format.
 
-Generate `CrossPasteIOS.xcodeproj` here with `xcodegen generate`, then open it in
-Xcode. Select your Personal Team for automatic signing to install on your phone.
+## Build
 
-The current UI is an early shell with the Devices and manual connection flow.
-Clipboard sync must use CrossPaste's existing pairing, encryption, and transfer
-protocol; do not send clipboard contents as plain text over the LAN.
+From the repository root:
+
+```sh
+./gradlew :core:jsBrowserProductionLibraryDistribution :web:npmInstall
+cd web
+npm run build:ios
+cd ../ios
+xcodegen generate
+xcodebuild -project CrossPasteIOS.xcodeproj -scheme CrossPasteIOS \
+  -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+```
+
+To install on a personal iPhone, open `CrossPasteIOS.xcodeproj` in Xcode, select
+your Personal Team for automatic signing, connect and trust the phone, then run
+the `CrossPasteIOS` scheme on that device.
+
+## Current scope
+
+The app pairs with a desktop on the same network using its IP address and port,
+then syncs text while the app is open. Clipboard reads and writes happen only
+after the user taps the corresponding buttons. iOS suspends background apps, so
+continuous clipboard monitoring is not available. Images and files are not yet
+handled by this first companion version.

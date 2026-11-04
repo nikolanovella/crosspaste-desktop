@@ -50,6 +50,7 @@
 			buildConfigurationList = 068C842277FB2D5ABF354DEF /* Build configuration list for PBXNativeTarget "CrossPasteIOS" */;
 			buildPhases = (
 				03C8CFD4409DA3928B01BD6E /* Sources */,
+				8A65607B18D745CAED1729BF /* Bundle iOS web companion */,
 			);
 			buildRules = (
 			);
@@ -95,6 +96,28 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		8A65607B18D745CAED1729BF /* Bundle iOS web companion */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle iOS web companion";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "mkdir -p \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist\"\n/usr/bin/ditto \"$SRCROOT/../web/ios-dist\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		03C8CFD4409DA3928B01BD6E /* Sources */ = {

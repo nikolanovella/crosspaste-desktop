@@ -24,14 +24,34 @@ export interface StoredDevice {
 
 const STORAGE_KEY = "devices";
 
+function hasExtensionStorage(): boolean {
+  return typeof chrome !== "undefined" && chrome.storage?.local !== undefined;
+}
+
+async function readDevices(): Promise<StoredDevice[]> {
+  if (!hasExtensionStorage()) {
+    const value = localStorage.getItem(STORAGE_KEY);
+    return value ? (JSON.parse(value) as StoredDevice[]) : [];
+  }
+  const result = await chrome.storage.local.get(STORAGE_KEY);
+  return (result[STORAGE_KEY] as StoredDevice[]) ?? [];
+}
+
+async function writeDevices(devices: StoredDevice[]): Promise<void> {
+  if (!hasExtensionStorage()) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(devices));
+    return;
+  }
+  await chrome.storage.local.set({ [STORAGE_KEY]: devices });
+}
+
 export const DeviceStore = {
   async getAll(): Promise<StoredDevice[]> {
-    const result = await chrome.storage.local.get(STORAGE_KEY);
-    return (result[STORAGE_KEY] as StoredDevice[]) ?? [];
+    return readDevices();
   },
 
   async save(device: StoredDevice): Promise<void> {
-    const devices = await this.getAll();
+    const devices = await readDevices();
     const index = devices.findIndex(
       (d) => d.targetAppInstanceId === device.targetAppInstanceId,
     );
@@ -40,33 +60,33 @@ export const DeviceStore = {
     } else {
       devices.push(device);
     }
-    await chrome.storage.local.set({ [STORAGE_KEY]: devices });
+    await writeDevices(devices);
   },
 
   async remove(targetAppInstanceId: string): Promise<void> {
-    const devices = await this.getAll();
+    const devices = await readDevices();
     const filtered = devices.filter(
       (d) => d.targetAppInstanceId !== targetAppInstanceId,
     );
-    await chrome.storage.local.set({ [STORAGE_KEY]: filtered });
+    await writeDevices(filtered);
   },
 
   async updateNote(
     targetAppInstanceId: string,
     noteName: string,
   ): Promise<void> {
-    const devices = await this.getAll();
+    const devices = await readDevices();
     const device = devices.find(
       (d) => d.targetAppInstanceId === targetAppInstanceId,
     );
     if (device) {
       device.noteName = noteName || undefined;
-      await chrome.storage.local.set({ [STORAGE_KEY]: devices });
+      await writeDevices(devices);
     }
   },
 
   async get(targetAppInstanceId: string): Promise<StoredDevice | null> {
-    const devices = await this.getAll();
+    const devices = await readDevices();
     return (
       devices.find(
         (d) => d.targetAppInstanceId === targetAppInstanceId,
@@ -78,7 +98,7 @@ export const DeviceStore = {
     targetAppInstanceId: string,
     needsRePair: boolean,
   ): Promise<void> {
-    const devices = await this.getAll();
+    const devices = await readDevices();
     const device = devices.find(
       (d) => d.targetAppInstanceId === targetAppInstanceId,
     );
@@ -89,6 +109,6 @@ export const DeviceStore = {
     } else {
       device.needsRePair = undefined;
     }
-    await chrome.storage.local.set({ [STORAGE_KEY]: devices });
+    await writeDevices(devices);
   },
 };

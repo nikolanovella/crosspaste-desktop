@@ -40,6 +40,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
@@ -76,6 +77,17 @@ open class DefaultServerModule(
 
     override fun installModules(): Application.() -> Unit =
         {
+            install(CORS) {
+                allowHost("app", schemes = listOf("crosspaste"))
+                allowMethod(HttpMethod.Get)
+                allowMethod(HttpMethod.Post)
+                allowHeader(HttpHeaders.ContentType)
+                allowHeader("appInstanceId")
+                allowHeader("targetAppInstanceId")
+                allowHeader("crosspaste-host")
+                allowHeader("crosspaste-sync-info")
+                allowNonSimpleContentTypes = true
+            }
             install(ContentNegotiation) {
                 json(getJsonUtils().JSON)
             }

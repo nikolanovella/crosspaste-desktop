@@ -15,6 +15,24 @@ const stripMarketingFromDist = (): Plugin => ({
 });
 
 export default defineConfig(({ mode }) => {
+  if (mode === "ios") {
+    return {
+      root: path.resolve(__dirname, "src/ios"),
+      base: "./",
+      plugins: [react()],
+      resolve: {
+        alias: { "@": path.resolve(__dirname, "./src") },
+        dedupe: ["@js-joda/core", "@noble/curves"],
+      },
+      build: {
+        outDir: path.resolve(__dirname, "ios-dist"),
+        emptyOutDir: true,
+        rollupOptions: {
+          input: { index: path.resolve(__dirname, "src/ios/index.html") },
+        },
+      },
+    };
+  }
   const marketing = process.env.VITE_MARKETING_MODE === "true" || mode === "marketing";
   return {
     plugins: marketing

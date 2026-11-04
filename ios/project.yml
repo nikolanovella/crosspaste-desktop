@@ -14,6 +14,15 @@ targets:
     platform: iOS
     sources:
       - CrossPasteIOS
+    resources:
+      - path: ../web/ios-dist
+        type: folder
+    postBuildScripts:
+      - name: Bundle iOS web companion
+        script: |
+          mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist"
+          /usr/bin/ditto "$SRCROOT/../web/ios-dist" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.nikolanovella.crosspaste.ios

@@ -13,6 +13,15 @@ export interface StoredKeyPair {
 
 const STORAGE_KEY = "keypairs_der";
 
+function hasExtensionStorage(): boolean {
+  return typeof chrome !== "undefined" && chrome.storage?.local !== undefined;
+}
+
+function readLocal<T>(key: string): T | null {
+  const value = localStorage.getItem(key);
+  return value ? (JSON.parse(value) as T) : null;
+}
+
 /** Convert Int8Array (Kotlin/JS ByteArray) to number[] for storage */
 function toStorable(arr: Int8Array): number[] {
   return Array.from(arr);
@@ -25,11 +34,16 @@ export function toInt8Array(arr: number[]): Int8Array {
 
 export const KeyStore = {
   async getKeys(): Promise<StoredKeyPair | null> {
+    if (!hasExtensionStorage()) return readLocal<StoredKeyPair>(STORAGE_KEY);
     const result = await chrome.storage.local.get(STORAGE_KEY);
     return (result[STORAGE_KEY] as StoredKeyPair) ?? null;
   },
 
   async saveKeys(keys: StoredKeyPair): Promise<void> {
+    if (!hasExtensionStorage()) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+      return;
+    }
     await chrome.storage.local.set({ [STORAGE_KEY]: keys });
   },
 
@@ -46,6 +60,10 @@ export const KeyStore = {
   },
 
   async clear(): Promise<void> {
+    if (!hasExtensionStorage()) {
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
     await chrome.storage.local.remove(STORAGE_KEY);
   },
 };
