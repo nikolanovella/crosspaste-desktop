@@ -39,12 +39,22 @@ items and explicitly scoped recipients. The metadata remains available after
 ordinary history dedup/deletion. A failed outbox insert rolls back the loaded row.
 Migration 8 adds only the new workspace/outbox tables; it does not rewrite history.
 
+`ClipboardCaptureConsumer` processes a bounded capture batch using the original
+device's signing key. It hashes frozen metadata with SHA-256 and signs a reference
+to that payload. Migration 9 adds indexed, append-only signed events and metadata
+payloads. `SqlSignedClipboardStore` commits events, payloads and capture
+acknowledgements together. Replayed captures resolve to their original entry;
+stale writers are rejected rather than overwriting newer events. Unlike the
+initial file-snapshot adapter, SQL storage has no 32 MB snapshot-file cap. The
+current reconciliation projection still loads history in memory and needs further
+scaling work before claiming large-history performance.
+
 ## Required before live use
 
 - Connect explicitly approved clipboard membership to the signature-verification
   resolver. Authenticated transport alone does not establish that membership.
-- Finish the transactional outbox consumer, edits/deletions, and durable incoming
-  reconciliation with the existing database and clipboard lifecycle.
+- Wire the capture consumer into the app lifecycle after payload retention and
+  approved membership are ready; finish edits/deletions and incoming materialization.
 - Retain file payloads referenced by pending captures before enabling capture in
   the product; preserving metadata alone does not prevent file cleanup.
 - Transfer and verify missing payloads separately from journal metadata.

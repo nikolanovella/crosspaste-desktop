@@ -1,0 +1,19 @@
+CREATE TABLE SharedClipboardEventEntity (
+    clipboardId TEXT NOT NULL,
+    originDevice TEXT NOT NULL,
+    originSequence INTEGER NOT NULL,
+    lamportClock INTEGER NOT NULL,
+    entryId TEXT NOT NULL,
+    signedChange TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, originDevice, originSequence)
+);
+
+CREATE INDEX SharedClipboardEventOrder ON SharedClipboardEventEntity
+    (clipboardId, lamportClock, originDevice, originSequence);
+
+CREATE TABLE SharedClipboardPayloadEntity (
+    clipboardId TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, contentHash)
+);

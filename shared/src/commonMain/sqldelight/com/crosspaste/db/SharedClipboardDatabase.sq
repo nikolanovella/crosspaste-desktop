@@ -23,6 +23,26 @@ CREATE TABLE SharedClipboardCaptureEntity (
     PRIMARY KEY (clipboardId, localPasteId)
 );
 
+CREATE TABLE SharedClipboardEventEntity (
+    clipboardId TEXT NOT NULL,
+    originDevice TEXT NOT NULL,
+    originSequence INTEGER NOT NULL,
+    lamportClock INTEGER NOT NULL,
+    entryId TEXT NOT NULL,
+    signedChange TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, originDevice, originSequence)
+);
+
+CREATE INDEX SharedClipboardEventOrder ON SharedClipboardEventEntity
+    (clipboardId, lamportClock, originDevice, originSequence);
+
+CREATE TABLE SharedClipboardPayloadEntity (
+    clipboardId TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, contentHash)
+);
+
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
 VALUES (?, ?, ?);
@@ -42,3 +62,25 @@ WHERE clipboardId = :clipboardId ORDER BY localPasteId ASC LIMIT :batchLimit;
 
 completeCapture:
 DELETE FROM SharedClipboardCaptureEntity WHERE clipboardId = ? AND localPasteId = ?;
+
+getWorkspace:
+SELECT * FROM SharedClipboardWorkspaceEntity WHERE clipboardId = ?;
+
+getCapture:
+SELECT * FROM SharedClipboardCaptureEntity WHERE clipboardId = ? AND localPasteId = ?;
+
+getEvents:
+SELECT * FROM SharedClipboardEventEntity WHERE clipboardId = ?
+ORDER BY lamportClock, originDevice, originSequence;
+
+insertEvent:
+INSERT INTO SharedClipboardEventEntity VALUES (?, ?, ?, ?, ?, ?);
+
+getPayload:
+SELECT payload FROM SharedClipboardPayloadEntity WHERE clipboardId = ? AND contentHash = ?;
+
+insertPayload:
+INSERT INTO SharedClipboardPayloadEntity VALUES (?, ?, ?);
+
+getPayloadCount:
+SELECT count(*) FROM SharedClipboardPayloadEntity WHERE clipboardId = ?;
