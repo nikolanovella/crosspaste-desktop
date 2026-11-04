@@ -99,3 +99,18 @@ Run the focused regression suite:
 Use `gradlew.bat` on Windows. Building JVM source on Windows compiles both adapter
 classes, but does not establish that native Mac focus, accessibility, clipboard
 formats, or cross-device syncing work. Those need a real Mac runtime test.
+
+### Preview verification, November 4, 2026
+
+- The focused Windows regression suite passed all 29 tests.
+- Windows x64, macOS Apple Silicon, and macOS Intel CI checks and portable
+  packaging passed in run `41804430365`.
+- The Windows preview is installed locally. Its packaged runtime starts and
+  loads the pinned OpenSSL library successfully.
+- Live screen testing opened the editor, added/typed a block, and saved it as a
+  separate clipboard entry. This exposed a dark-background text contrast issue,
+  which was corrected and rebuilt.
+- Screen control subsequently returned no targetable windows. Visual verification
+  of the rebuilt contrast, paste-back, and drag/merge remains pending; passing unit
+  tests are not a substitute for those UI checks. Mac native behavior and actual
+  Windows–Mac pairing also remain unverified on personal devices.
