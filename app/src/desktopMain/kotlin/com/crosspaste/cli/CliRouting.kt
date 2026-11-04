@@ -83,8 +83,21 @@ fun Routing.cliRouting(
     syncManager: SyncManager,
     syncRuntimeInfoDao: SyncRuntimeInfoDao,
     userDataPathProvider: UserDataPathProvider,
+    openUi: ((String) -> Unit)? = null,
 ) {
     route("/cli") {
+        // Same-user local socket only; no network listener or credential access.
+        post("/ui/open") {
+            val page = call.request.queryParameters["page"] ?: "main"
+            if (page !in setOf("main", "devices", "settings", "workbench")) {
+                call.respond(HttpStatusCode.BadRequest, CliMessageDto("Unknown page"))
+            } else if (openUi == null) {
+                call.respond(HttpStatusCode.NotImplemented, CliMessageDto("No desktop UI is running"))
+            } else {
+                openUi(page)
+                call.respond(HttpStatusCode.Accepted, CliMessageDto("Opened"))
+            }
+        }
         get("/status") {
             handleStatus(call, appInfo, configManager, pasteDao, syncRuntimeInfoDao)
         }

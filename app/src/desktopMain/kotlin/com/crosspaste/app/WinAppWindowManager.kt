@@ -33,16 +33,13 @@ class WinAppWindowManager(
     userDataPathProvider: UserDataPathProvider,
 ) : DesktopAppWindowManager(appSize) {
 
-    private var _cachedMainHWND: HWND? = null
     private var _cachedSearchHWND: HWND? = null
     private var _cachedBubbleHWND: HWND? = null
 
     val mainHWND: HWND?
         get() {
-            if (_cachedMainHWND == null) {
-                _cachedMainHWND = WindowsFocusUtils.findPasteWindow(mainWindowTitle)
-            }
-            return _cachedMainHWND
+            val window = mainComposeWindow?.takeIf { it.isDisplayable } ?: return null
+            return HWND(Native.getWindowPointer(window))
         }
 
     val searchHWND: HWND?
@@ -277,11 +274,6 @@ class WinAppWindowManager(
             ShortcutKeysListener.PASTE_INJECTION_SUPPRESS_TIMEOUT,
         )
         WindowsFocusUtils.paste(keyCodes)
-    }
-
-    override fun onMainComposeWindowChanged(window: ComposeWindow?) {
-        logger.debug { "Main ComposeWindow changed, invalidating HWND cache" }
-        _cachedMainHWND = null
     }
 
     override fun onSearchComposeWindowChanged(window: ComposeWindow?) {

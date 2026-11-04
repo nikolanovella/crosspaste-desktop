@@ -152,7 +152,12 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
                 get(),
                 get(),
                 get(),
-                contributors = listOf(get<ExtractTextMenuContributor>(), get<PluginMenuContributor>()),
+                contributors =
+                    listOf(
+                        get<ExtractTextMenuContributor>(),
+                        get<PluginMenuContributor>(),
+                        com.crosspaste.workbench.WorkbenchMenuContributor(get(), get(), get(), get()),
+                    ),
             )
         }
         single<DesktopPasteTagMenuService> {

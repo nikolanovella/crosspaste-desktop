@@ -104,8 +104,6 @@ fun ApplicationScope.CrossPasteWindows(exiting: Boolean) {
         )
     }
 
-    com.crosspaste.workbench.ClipboardWorkbenchWindow()
-
     MainWindow(windowIcon)
 
     SearchWindow(windowIcon)

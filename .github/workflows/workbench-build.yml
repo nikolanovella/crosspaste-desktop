@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           ./gradlew ktlintCheck
-          ./gradlew :app:desktopTest --tests 'com.crosspaste.workbench.*' --tests 'com.crosspaste.listener.*' --tests 'com.crosspaste.ui.model.PastePanelViewModelTest'
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.workbench.*' --tests 'com.crosspaste.listener.*' --tests 'com.crosspaste.ui.model.PastePanelViewModelTest' --tests 'com.crosspaste.cli.CliRoutingTest.local UI activation*' --tests 'com.crosspaste.cli.CliRoutingTest.headless instance cannot*'
           ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
       - name: Archive portable app with executable permissions
         shell: bash

@@ -75,6 +75,7 @@ class CliServer(
     private val taskSubmitter: TaskSubmitter,
     private val userDataPathProvider: UserDataPathProvider,
     private val socketBaseDir: Path = Paths.get(System.getProperty("java.io.tmpdir")),
+    private val openUi: ((String) -> Unit)? = null,
 ) {
 
     companion object {
@@ -216,6 +217,7 @@ class CliServer(
                 pasteContentEditor = pasteContentEditor,
                 taskSubmitter = taskSubmitter,
                 userDataPathProvider = userDataPathProvider,
+                openUi = openUi,
             )
         }
     }

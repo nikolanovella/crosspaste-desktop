@@ -176,6 +176,7 @@ class CliRoutingTest {
     private fun Application.cliTestModule(
         fixture: Fixture,
         supportsPasteCopy: Boolean,
+        openUi: ((String) -> Unit)? = null,
     ) {
         install(ContentNegotiation) {
             json(Json { encodeDefaults = true })
@@ -199,9 +200,28 @@ class CliRoutingTest {
                 syncManager = fixture.syncManager,
                 syncRuntimeInfoDao = fixture.syncRuntimeInfoDao,
                 userDataPathProvider = fixture.userDataPathProvider,
+                openUi = openUi,
             )
         }
     }
+
+    @Test
+    fun `local UI activation accepts only named app pages`() =
+        testApplication {
+            val opened = mutableListOf<String>()
+            application { cliTestModule(Fixture(), supportsPasteCopy = true, openUi = { opened.add(it) }) }
+            assertEquals(HttpStatusCode.Accepted, client.post("/cli/ui/open?page=workbench").status)
+            assertEquals(listOf("workbench"), opened)
+            assertEquals(HttpStatusCode.BadRequest, client.post("/cli/ui/open?page=unknown").status)
+            assertEquals(listOf("workbench"), opened)
+        }
+
+    @Test
+    fun `headless instance cannot open desktop UI`() =
+        testApplication {
+            application { cliTestModule(Fixture(), supportsPasteCopy = false) }
+            assertEquals(HttpStatusCode.NotImplemented, client.post("/cli/ui/open").status)
+        }
 
     private fun textPasteData(
         id: Long,

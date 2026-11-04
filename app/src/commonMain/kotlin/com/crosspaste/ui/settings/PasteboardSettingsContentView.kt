@@ -39,6 +39,8 @@ import org.koin.compose.koinInject
 fun PasteboardSettingsContentView(
     recordingExtContent: @Composable () -> Unit = {},
     pastingExtContent: @Composable () -> Unit = {},
+    recordingTitle: String = "clipboard_monitoring",
+    recordingSubtitle: String? = null,
 ) {
     val configManager = koinInject<CommonConfigManager>()
     val pasteboardService = koinInject<PasteboardService>()
@@ -58,7 +60,8 @@ fun PasteboardSettingsContentView(
         item {
             SettingSectionCard {
                 SettingListSwitchItem(
-                    title = "clipboard_monitoring",
+                    title = recordingTitle,
+                    subtitle = recordingSubtitle,
                     icon = IconData(MaterialSymbols.Rounded.Content_paste, themeExt.blueIconColor),
                     checked = config.enablePasteboardListening,
                 ) {

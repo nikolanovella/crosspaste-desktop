@@ -61,6 +61,10 @@ interface AppConfig {
     val enableAutoPastePull: Boolean
         get() = true
 
+    // Device-local participation: retain shared history without replacing the OS clipboard.
+    val useSharedClipboardForPaste: Boolean
+        get() = enablePasteboardListening // Legacy/mobile implementations retain their existing pause behavior.
+
     // Whether the newest paste fetched by a catch-up pull also replaces the
     // system clipboard. Off by default: a catch-up runs in the background on
     // reconnect and must not overwrite what the user has just copied locally

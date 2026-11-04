@@ -46,6 +46,7 @@ import com.composables.icons.materialsymbols.rounded.Keyboard
 import com.composables.icons.materialsymbols.rounded.Refresh
 import com.composables.icons.materialsymbols.rounded.Settings
 import com.composables.icons.materialsymbols.rounded.Share
+import com.composables.icons.materialsymbols.rounded.Stacks
 import com.composables.icons.materialsymbols.rounded.Upload
 import com.composables.icons.materialsymbols.rounded.Vpn_key
 import com.composables.icons.materialsymbols.rounded.Warning
@@ -68,6 +69,7 @@ import com.crosspaste.ui.theme.AppUISize.tiny4X
 import com.crosspaste.ui.theme.AppUISize.tiny5X
 import com.crosspaste.ui.theme.AppUISize.tinyRoundedCornerShape
 import com.crosspaste.ui.theme.AppUISize.xxxLarge
+import com.crosspaste.workbench.ClipboardWorkbenchRoute
 import io.github.z4kn4fein.semver.Version
 import org.koin.compose.koinInject
 
@@ -84,6 +86,7 @@ fun MainMenuView() {
         remember {
             listOf(
                 MainMenuItem("devices", Devices, MaterialSymbols.Rounded.Devices),
+                MainMenuItem("clipboard_workbench", ClipboardWorkbenchRoute, MaterialSymbols.Rounded.Stacks),
                 MainMenuItem("pairing_code", PairingCode, MaterialSymbols.Rounded.Vpn_key),
                 MainMenuItem("settings", Settings, MaterialSymbols.Rounded.Settings),
                 MainMenuItem("extension", Extension, MaterialSymbols.Rounded.Extension),

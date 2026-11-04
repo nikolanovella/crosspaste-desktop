@@ -279,7 +279,7 @@ class CrossPaste {
                         jobs.awaitAll()
                     }
                 } else {
-                    // The GUI second instance keeps its historic silent exit(0); a
+                    // A GUI relaunch activates the existing instance; a
                     // headless daemon must fail loudly with a non-zero code so that
                     // service managers (systemd) and scripts can detect the conflict.
                     if (headless) {
@@ -290,6 +290,7 @@ class CrossPaste {
                         )
                         exitProcess(1)
                     }
+                    com.crosspaste.cli.activateExistingWindow(koin.get())
                     exitProcess(0)
                 }
             }.onFailure { e ->

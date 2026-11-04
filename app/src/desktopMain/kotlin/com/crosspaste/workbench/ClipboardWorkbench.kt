@@ -2,6 +2,8 @@ package com.crosspaste.workbench
 
 import com.crosspaste.app.AppFileType
 import com.crosspaste.app.AppInfo
+import com.crosspaste.app.DesktopAppWindowManager
+import com.crosspaste.app.WindowTrigger
 import com.crosspaste.config.DesktopConfigManager
 import com.crosspaste.db.paste.PasteDao
 import com.crosspaste.paste.PasteReleaseService
@@ -11,6 +13,7 @@ import com.crosspaste.paste.item.PasteItemReader
 import com.crosspaste.paste.plugin.type.DesktopTextTypePlugin
 import com.crosspaste.path.AppPathProvider
 import com.crosspaste.platform.Platform
+import com.crosspaste.ui.NavigationManager
 import com.crosspaste.utils.GlobalCoroutineScope.mainCoroutineDispatcher
 import com.crosspaste.utils.ioDispatcher
 import com.crosspaste.workbench.platform.ClipboardCaptureGate
@@ -41,6 +44,7 @@ enum class ClipboardWorkbenchMode { CLOSED, COPY, EDITOR }
 data class ClipboardSelection(
     val text: String = "",
     val files: List<Path> = emptyList(),
+    val canCopyNormally: Boolean = true,
 )
 
 data class ClipboardHistoryText(
@@ -68,6 +72,8 @@ class ClipboardWorkbench(
     private val itemReader: PasteItemReader,
     private val paths: AppPathProvider,
     platform: Platform,
+    private val navigation: NavigationManager,
+    private val windows: DesktopAppWindowManager,
 ) {
     private val native = clipboardPlatform(platform)
     private val mutableState = MutableStateFlow(ClipboardWorkbenchState())
@@ -139,6 +145,14 @@ class ClipboardWorkbench(
                 selection = selection.getOrNull() ?: ClipboardSelection(),
                 message = selection.exceptionOrNull()?.message ?: "Choose how to copy this selection",
             )
+        present()
+    }
+
+    private fun present() {
+        windows.hideSearchWindow()
+        windows.hidePastePanelWindow()
+        navigation.navigateAndClearStack(ClipboardWorkbenchRoute)
+        windows.showMainWindow(WindowTrigger.MENU)
     }
 
     suspend fun pastePlainFromSystem() {
@@ -168,6 +182,8 @@ class ClipboardWorkbench(
 
     fun close() {
         operation?.cancel()
+        if (state.value.mode != ClipboardWorkbenchMode.CLOSED) windows.hideMainWindow()
+        target = null
         mutableState.value =
             state.value.copy(mode = ClipboardWorkbenchMode.CLOSED, busy = false)
     }
@@ -258,9 +274,29 @@ class ClipboardWorkbench(
         select(added)
     }
 
+    fun hasPasteTarget(): Boolean = target != null
+
+    fun openHistoryEditor(clip: ClipboardHistoryText) {
+        target = null
+        openEditor(historyClip = clip)
+    }
+
+    fun openHistoryFiles(files: List<Path>) {
+        target = null
+        mutableState.value =
+            state.value.copy(
+                mode = ClipboardWorkbenchMode.COPY,
+                selection = ClipboardSelection(files = files, canCopyNormally = false),
+                message = "Choose a copy format",
+            )
+        present()
+    }
+
     fun openEditor(
         fromSelection: Boolean = false,
         captureTarget: Boolean = false,
+        showInApp: Boolean = true,
+        historyClip: ClipboardHistoryText? = null,
     ) {
         if (captureTarget) target = native.captureTarget()
         mainCoroutineDispatcher.launch {
@@ -276,6 +312,7 @@ class ClipboardWorkbench(
                     }
                 if (saved != null) mutableState.value = state.value.copy(document = saved)
             }
+            if (historyClip != null) append(historyClip)
             if (fromSelection &&
                 state.value.selection.text
                     .isNotEmpty()
@@ -288,6 +325,7 @@ class ClipboardWorkbench(
                     message = "Edits are saved as a separate draft. Originals stay intact.",
                 )
             refreshHistory()
+            if (showInApp) present()
         }
     }
 
@@ -349,6 +387,7 @@ class ClipboardWorkbench(
                 } catch (
                     e: Exception,
                 ) {
+                    val dismissed = state.value.mode == ClipboardWorkbenchMode.CLOSED
                     mutableState.value =
                         state.value.copy(
                             mode =
@@ -361,6 +400,7 @@ class ClipboardWorkbench(
                                 },
                             message = e.message ?: "Operation failed",
                         )
+                    if (dismissed) present()
                 } finally {
                     mutableState.value = state.value.copy(busy = false)
                 }
@@ -391,8 +431,10 @@ class ClipboardWorkbench(
     fun copyNormally() =
         runOperation {
             mutableState.value = state.value.copy(mode = ClipboardWorkbenchMode.CLOSED)
+            windows.hideMainWindow()
             check(restoreTarget()) { "Could not return to the original app. Copy there normally." }
             withContext(ioDispatcher) { native.copySelection() }
+            target = null
         }
 
     fun saveEdited(paste: Boolean = false) =
@@ -412,6 +454,7 @@ class ClipboardWorkbench(
             refreshHistory()
             if (paste) {
                 mutableState.value = state.value.copy(mode = ClipboardWorkbenchMode.CLOSED)
+                windows.hideMainWindow()
                 check(restoreTarget()) { "Saved and copied. Focus your destination and paste normally." }
                 withContext(ioDispatcher) {
                     val robot = java.awt.Robot()
@@ -420,6 +463,7 @@ class ClipboardWorkbench(
                     robot.keyRelease(java.awt.event.KeyEvent.VK_V)
                     robot.keyRelease(native.primaryKey)
                 }
+                target = null
             }
         }
 

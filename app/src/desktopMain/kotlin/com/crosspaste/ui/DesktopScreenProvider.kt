@@ -56,6 +56,8 @@ import com.crosspaste.ui.theme.AppUIColors
 import com.crosspaste.ui.theme.AppUISize.medium
 import com.crosspaste.ui.theme.AppUISize.xxLarge
 import com.crosspaste.ui.theme.AppUISize.zero
+import com.crosspaste.workbench.ClipboardWorkbenchContent
+import com.crosspaste.workbench.ClipboardWorkbenchRoute
 import kotlinx.coroutines.channels.Channel
 
 class DesktopScreenProvider(
@@ -137,6 +139,9 @@ class DesktopScreenProvider(
             popExitTransition = { ExitTransition.None },
         ) {
             composable<About> { AboutScreen() }
+            composable<ClipboardWorkbenchRoute> {
+                DesktopScreenLayout { ClipboardWorkbenchContent() }
+            }
             composable<ChangeLog> { ChangeLogScreen() }
 
             navigation<DevicesGraph>(startDestination = Devices) {

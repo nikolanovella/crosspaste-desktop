@@ -25,7 +25,7 @@ interface PasteboardService : PasteboardMonitor {
         serviceScope.launch {
             for (task in remotePasteboardChannel) {
                 try {
-                    if (configManager.getCurrentConfig().enablePasteboardListening) {
+                    if (configManager.getCurrentConfig().useSharedClipboardForPaste) {
                         task()
                     }
                 } catch (e: Exception) {

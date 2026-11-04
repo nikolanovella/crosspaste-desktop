@@ -23,6 +23,11 @@ also dismisses it.
 
 ## Copy menu
 
+The editor and selection-copy tools are pages inside the original CrossPaste
+main app. They use its sidebar, theme, section cards and controls; there is no
+separate Workbench window. The existing history context menu also exposes
+Edit / merge for text clips and the three copy tools for file clips.
+
 Select something in an application, then invoke the copy menu shortcut. The menu
 probes the app's normal Copy command and offers actions for the resulting data:
 
@@ -77,7 +82,8 @@ All new production files live together under
 | `ClipboardDocument.kt` | Immutable originals and editable/groupable/reorderable blocks |
 | `ClipboardFileTools.kt` | Shared file-name and Markdown tree exporters |
 | `ClipboardWorkbench.kt` | Clipboard actions, draft persistence, history import, and save lifecycle |
-| `ClipboardWorkbenchWindow.kt` | Shared themed menu and editor UI |
+| `ClipboardWorkbenchContent.kt` | Native main-app editor and copy-tools page |
+| `WorkbenchMenuContributor.kt` | Actions in the existing clipboard history context menu |
 | `platform/ClipboardPlatform.kt` | Native adapter contract and selection-capture guard |
 | `platform/ClipboardPlatformWindows.kt` | Windows sequence, privacy hints, and destination activation |
 | `platform/ClipboardPlatformMac.kt` | Matching macOS implementation |
@@ -87,6 +93,28 @@ Tests mirror that folder under `app/src/desktopTest/kotlin/com/crosspaste/workbe
 The existing `shortcut_keys/Windows.properties` and `shortcut_keys/Macos.properties`
 hold corresponding platform bindings. Shared behavior is implemented once rather
 than duplicated into drifting Mac and Windows versions.
+
+## Shared clipboard participation
+
+Under Settings → Clipboard, each Windows/Mac device has two independent controls:
+
+- **Add my copies to the shared clipboard:** reuses the existing local recording
+  switch. Off stops automatic capture/contribution, not normal local Copy.
+- **Use the shared clipboard when I paste:** new shared clips may replace this
+  device's OS clipboard only when enabled. Off retains incoming shared history
+  and explicit history/editor paste actions, without changing normal local Paste.
+
+Both default on for new desktop configurations; existing recording preferences
+are retained. The receive queue checks paste participation when it executes, so
+turning the setting off also blocks an already-queued automatic clipboard write.
+This separates recording from the old receive gate, which used the recording flag.
+
+Relaunching the desktop executable activates its running instance through the
+same-user local socket. `POST /cli/ui/open?page=main|devices|settings|workbench`
+is local-only, rejects arbitrary page names, and is unavailable in headless mode.
+
+Bluetooth transport is **not implemented**. LAN discovery/sync remains the only
+implemented connection path in this preview; no Bluetooth switch claims otherwise.
 
 ## Validation
 
@@ -100,7 +128,7 @@ Use `gradlew.bat` on Windows. Building JVM source on Windows compiles both adapt
 classes, but does not establish that native Mac focus, accessibility, clipboard
 formats, or cross-device syncing work. Those need a real Mac runtime test.
 
-### Preview verification, November 4, 2026
+### Initial preview verification, November 4, 2026
 
 - The focused Windows regression suite passed all 29 tests.
 - Windows x64, macOS Apple Silicon, and macOS Intel CI checks and portable
@@ -114,3 +142,17 @@ formats, or cross-device syncing work. Those need a real Mac runtime test.
   of the rebuilt contrast, paste-back, and drag/merge remains pending; passing unit
   tests are not a substitute for those UI checks. Mac native behavior and actual
   Windows–Mac pairing also remain unverified on personal devices.
+
+### Native UI integration, November 4, 2026
+
+The separate editor window has been removed. Editor, merge, originals, grouping,
+reordering, and copy tools now use the existing main-app navigation, settings cards,
+and controls. Text/file history context menus expose the corresponding actions.
+
+All 34 focused regression tests passed, including the four device-participation
+combinations, queued-write policy changes, configuration persistence, and local UI
+activation validation. The Windows package is built and installed. The integrated
+editor was visually confirmed in the original sidebar/theme, with the draft intact.
+Subsequent click testing was blocked by shell cloaking: Windows reported the main
+window visible and on the current desktop, but DWM cloaked it and screen control
+could not target it. No Alt+Tab, Stage Manager, or MyDockFinder setting was changed.

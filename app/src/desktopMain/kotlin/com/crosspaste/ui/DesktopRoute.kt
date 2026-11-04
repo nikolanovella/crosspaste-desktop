@@ -5,6 +5,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 
 fun getRouteName(dest: NavDestination): String? =
     when {
+        dest.hasRoute<com.crosspaste.workbench.ClipboardWorkbenchRoute>() -> "clipboard_workbench"
         dest.hasRoute<About>() -> About.NAME
         dest.hasRoute<ChangeLog>() -> ChangeLog.NAME
         dest.hasRoute<DeviceDetail>() -> DeviceDetail.NAME

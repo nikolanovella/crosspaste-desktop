@@ -84,6 +84,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.server.cio.CIOApplicationEngine
+import kotlinx.coroutines.launch
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -127,6 +128,25 @@ fun desktopNetworkModule(
                 pasteContentEditor = get(),
                 taskSubmitter = get(),
                 userDataPathProvider = get(),
+                openUi =
+                    if (headless) {
+                        null
+                    } else {
+                        { page ->
+                            com.crosspaste.utils.GlobalCoroutineScope.mainCoroutineDispatcher.launch {
+                                val route =
+                                    when (page) {
+                                        "devices" -> com.crosspaste.ui.Devices
+                                        "settings" -> com.crosspaste.ui.PasteboardSettings
+                                        "workbench" -> com.crosspaste.workbench.ClipboardWorkbenchRoute
+                                        else -> null
+                                    }
+                                route?.let { get<com.crosspaste.ui.NavigationManager>().navigateAndClearStack(it) }
+                                get<com.crosspaste.app.DesktopAppWindowManager>()
+                                    .showMainWindow(com.crosspaste.app.WindowTrigger.SYSTEM)
+                            }
+                        }
+                    },
             )
         }
         // endregion
