@@ -175,3 +175,21 @@ Final portable build run `41826195716` passed on Windows x64, macOS Apple Silico
 and macOS Intel, including all 36 focused tests on each platform. Archives retain
 the OS/architecture naming requirement. The new Mac UI is available in those
 artifacts; it has not been installed on the personal Mac by this Windows session.
+
+### Completed Windows gesture and paste checks, November 4, 2026
+
+The installed native UI was tested through actual mouse and keyboard input:
+
+- Dragging a block above another changed the persisted draft order.
+- Undo restored the original order; Redo restored the moved order.
+- Dragging a merged group moved both members together, retaining their group ID
+  and relative order. The test draft was restored afterward.
+- Opening the editor with its shortcut from an editable Chrome field enabled
+  Save & paste. Selecting it returned to that field and inserted the expected
+  214-character test document. The result was checked on screen and through
+  the field's accessibility text.
+
+These checks close the Windows gesture and editor paste-back verification gap.
+They used only existing test clips and a local browser test page. They do not
+establish Mac native paste behavior, Bluetooth transport, or bidirectional
+text/image/file synchronization across devices.
