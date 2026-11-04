@@ -1,6 +1,8 @@
 package com.crosspaste.workbench
 
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -13,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -20,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
@@ -151,8 +154,18 @@ private fun EditorContent(
             onClick = { controller.saveEdited(paste = true) },
             enabled = !state.busy && controller.hasPasteTarget(),
         ) { Text("Save & paste") }
-        GeneralIconButton(MaterialSymbols.Rounded.Undo, desc = "editor_undo", onClick = controller::undo)
-        GeneralIconButton(MaterialSymbols.Rounded.Redo, desc = "editor_redo", onClick = controller::redo)
+        GeneralIconButton(
+            MaterialSymbols.Rounded.Undo,
+            desc = "editor_undo",
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+            onClick = controller::undo,
+        )
+        GeneralIconButton(
+            MaterialSymbols.Rounded.Redo,
+            desc = "editor_redo",
+            colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+            onClick = controller::redo,
+        )
     }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(small)) {
         FilterChip(selected = !library, onClick = { library = false }, label = { Text("Editor") })
@@ -210,6 +223,9 @@ private fun EditorContent(
                 }
             }
             items(state.document.blocks, key = { it.id }) { block ->
+                DisposableEffect(block.id) { onDispose { bounds.remove(block.id) } }
+                var dragY by remember(block.id) { mutableStateOf(0f) }
+                var handleTop by remember(block.id) { mutableStateOf(0f) }
                 val original = state.document.originals.firstOrNull { it.id == block.originalId }
                 SettingSectionCard(Modifier.onGloballyPositioned { bounds[block.id] = it.boundsInRoot() }) {
                     Column(Modifier.padding(small), verticalArrangement = Arrangement.spacedBy(small)) {
@@ -219,37 +235,27 @@ private fun EditorContent(
                             })
                             Text(
                                 "⠿ Drag${if (block.groupId != null) " · Group" else ""}",
-                                Modifier.padding(small).pointerInput(block.id, state.selected, state.document.blocks) {
-                                    var y = 0f
-                                    detectDragGestures(
-                                        onDragStart = { y = (bounds[block.id]?.top ?: 0f) + it.y },
-                                        onDrag = { change, delta ->
-                                            change.consume()
-                                            y += delta.y
-                                        },
-                                        onDragEnd = {
+                                Modifier
+                                    .padding(small)
+                                    .onGloballyPositioned { handleTop = it.boundsInRoot().top }
+                                    .draggable(
+                                        orientation = Orientation.Vertical,
+                                        state = rememberDraggableState { dragY += it },
+                                        startDragImmediately = true,
+                                        onDragStarted = { dragY = handleTop + it.y },
+                                        onDragStopped = {
                                             val destination =
-                                                state.document.blocks
-                                                    .firstOrNull {
-                                                        (
-                                                            bounds[it.id]?.center?.y
-                                                                ?: Float.MAX_VALUE
-                                                        ) >
-                                                            y
-                                                    }?.id
+                                                clipboardDropTarget(
+                                                    state.document.blocks.map { it.id },
+                                                    bounds.mapValues { it.value.center.y },
+                                                    dragY,
+                                                )
                                             controller.move(
-                                                if (block.id in
-                                                    state.selected
-                                                ) {
-                                                    state.selected
-                                                } else {
-                                                    setOf(block.id)
-                                                },
+                                                if (block.id in state.selected) state.selected else setOf(block.id),
                                                 destination,
                                             )
                                         },
-                                    )
-                                },
+                                    ),
                             )
                         }
                         Text(original?.source ?: "New block", style = MaterialTheme.typography.labelSmall)
