@@ -498,6 +498,12 @@ compose.desktop {
 
         nativeDistributions {
 
+            // The fork uses jpackage rather than upstream's Conveyor/full-JBR package.
+            // Reflective discovery/native dependencies are not all inferred by jdeps.
+            if (project.findProperty("workbenchFork")?.toString() == "true") {
+                includeAllModules = true
+            }
+
             appResourcesRootDir = project.layout.projectDirectory.dir("resources")
             packageName = "crosspaste"
             packageVersion = version.toString()
@@ -989,3 +995,34 @@ data class OpenSslTarget(
     var sha256: String = "",
     var libName: String = "",
 )
+
+// The Workbench preview uses Compose/jpackage rather than upstream Conveyor.
+// Keep its native crypto dependency and license in the paths the app resolves.
+if (project.findProperty("workbenchFork")?.toString() == "true") {
+    tasks.matching { it.name == "createDistributable" }.configureEach {
+        dependsOn(prepareDevOpenSslLib)
+        doLast {
+            val output =
+                layout.buildDirectory
+                    .dir("compose/binaries/main/app")
+                    .get()
+                    .asFile
+            val mac = DefaultNativePlatform.getCurrentOperatingSystem().isMacOsX
+            val app = output.resolve(if (mac) "crosspaste.app" else "crosspaste")
+            val nativeDir = app.resolve(if (mac) "Contents/runtime/Contents/Home/lib" else "app/bin")
+            nativeDir.mkdirs()
+            val crypto = checkNotNull(devOpenSslLibFile) { "No native crypto library for this platform" }
+            check(crypto.isFile) { "Missing pinned native crypto library: $crypto" }
+            crypto.copyTo(nativeDir.resolve(crypto.name), overwrite = true)
+            val notices = app.resolve(if (mac) "Contents/Resources/licenses" else "app/licenses")
+            notices.mkdirs()
+            rootProject.file("LICENSE").copyTo(notices.resolve("CrossPaste-AGPL-3.0.txt"), overwrite = true)
+            project.file("third-party/licenses/openssl").copyRecursively(notices.resolve("OpenSSL"), overwrite = true)
+            notices.resolve("SOURCE.txt").writeText(
+                "Personal fork source: " +
+                    "https://github.com/nikolanovella/crosspaste-desktop/tree/feature/clipboard-workbench\n" +
+                    "This preview contains Clipboard Workbench extensions to CrossPaste.\n",
+            )
+        }
+    }
+}

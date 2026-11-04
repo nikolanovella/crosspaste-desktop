@@ -39,11 +39,19 @@ jobs:
           ./gradlew ktlintCheck
           ./gradlew :app:desktopTest --tests 'com.crosspaste.workbench.*' --tests 'com.crosspaste.listener.*' --tests 'com.crosspaste.ui.model.PastePanelViewModelTest'
           ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
+      - name: Archive portable app with executable permissions
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            /usr/bin/codesign --force --deep --sign - app/build/compose/binaries/main/app/crosspaste.app
+          fi
+          mkdir -p workbench-package
+          tar -czf "workbench-package/CrossPaste-Workbench-${{ matrix.package }}.tar.gz" -C app/build/compose/binaries/main/app .
       - name: Upload platform app
         uses: actions/upload-artifact@v6
         with:
           name: CrossPaste-Workbench-${{ matrix.package }}
-          path: app/build/compose/binaries/main/app/
+          path: workbench-package/
           if-no-files-found: error
           retention-days: 14
       - name: Upload test results

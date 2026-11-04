@@ -20,9 +20,10 @@ Personal Windows–Mac clipboard workspace, forked from
   `3ff3e5fc` (`use the local paste id when writing a received non-file paste to the pasteboard`).
 - The [Clipboard Workbench](doc/fork/CLIPBOARD-WORKBENCH.md) adds paired copy/paste shortcuts, three file-copy tools, and a non-destructive text/Markdown block editor.
 - Pairing, encryption, and the cross-device protocol retain the upstream implementations.
-- No custom installer or fork release has been published. Forking source does not
-  copy upstream release assets; use the official downloads while establishing a
-  working Windows–Mac baseline.
+- Windows Workbench preview is packaged and installed locally for live testing.
+  The feature branch builds matching Windows, Apple Silicon Mac, and Intel Mac
+  portable previews in the Clipboard Workbench builds workflow. These are
+  development artifacts, not a signed/notarized production release.
 - JVM compilation and focused regression tests have passed on Windows. Native Mac runtime and cross-device pairing remain separate verification steps.
 
 ## Working layout

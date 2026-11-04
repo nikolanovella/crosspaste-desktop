@@ -22,6 +22,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -83,41 +84,43 @@ fun ClipboardWorkbenchWindow() {
         title = if (editor) "CrossPaste — Clipboard Workbench" else "CrossPaste — Copy selection",
         state = windowState,
     ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(medium)
-                .onPreviewKeyEvent { event ->
-                    if (event.key == Key.Escape &&
-                        event.type == KeyEventType.KeyUp
-                    ) {
+        Surface(color = MaterialTheme.colorScheme.background, contentColor = MaterialTheme.colorScheme.onBackground) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(medium)
+                    .onPreviewKeyEvent { event ->
+                        if (event.key == Key.Escape &&
+                            event.type == KeyEventType.KeyUp
+                        ) {
+                            controller.close()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                verticalArrangement = Arrangement.spacedBy(small),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(small)) {
+                    Text(
+                        if (editor) "Clipboard Workbench" else "Copy selection",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
                         controller.close()
-                        true
-                    } else {
-                        false
-                    }
-                },
-            verticalArrangement = Arrangement.spacedBy(small),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(small)) {
+                        appWindowManager.showMainWindow(WindowTrigger.MENU)
+                    }) { Text("Full clipboard") }
+                }
+                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text(
-                    if (editor) "Clipboard Workbench" else "Copy selection",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
+                    state.message,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
                 )
-                TextButton(onClick = {
-                    controller.close()
-                    appWindowManager.showMainWindow(WindowTrigger.MENU)
-                }) { Text("Full clipboard") }
+                if (editor) WorkbenchEditor(state, controller) else WorkbenchCopyMenu(state, controller)
             }
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(
-                state.message,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (editor) WorkbenchEditor(state, controller) else WorkbenchCopyMenu(state, controller)
         }
     }
 }
