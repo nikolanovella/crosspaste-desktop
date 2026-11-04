@@ -20,6 +20,7 @@ targets:
     postBuildScripts:
       - name: Bundle iOS web companion
         script: |
+          rm -rf "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist"
           mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist"
           /usr/bin/ditto "$SRCROOT/../web/ios-dist" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/ios-dist"
         basedOnDependencyAnalysis: false
