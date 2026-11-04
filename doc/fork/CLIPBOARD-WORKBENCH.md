@@ -113,16 +113,18 @@ Relaunching the desktop executable activates its running instance through the
 same-user local socket. `POST /cli/ui/open?page=main|devices|settings|workbench`
 is local-only, rejects arbitrary page names, and is unavailable in headless mode.
 
-Bluetooth transport is **not implemented**. LAN discovery/sync remains the only
-implemented connection path in this preview; no Bluetooth switch claims otherwise.
+An **experimental, default-off Bluetooth connection** is implemented in the
+existing Devices page. It uses separate, OS-named Windows/macOS native adapters,
+a bounded bidirectional relay and temporary routes for the selected, previously
+paired CrossPaste device. It does not create another clipboard or rewrite saved
+LAN addresses. No radio listener or connection starts automatically.
 
-An experimental transport foundation now lives in `native/bluetooth/` and
-`com.crosspaste.transport.bluetooth`. It has separate, OS-named Windows/macOS
-adapters and a shared bounded, bidirectional relay. Windows adapter self-checks
-and six framing/relay checks pass locally. macOS native compilation is gated in
-CI. This code is not yet connected to the device UI, and no radio listener or
-connection starts automatically. Physical Bluetooth synchronization, routing,
-reconnect, and permission handling still require completion and verification.
+The Windows package and 128 protocol/Bluetooth checks passed in CI, alongside
+the 36 Workbench checks. These establish implementation and automated regression
+coverage, not a working physical Windows–Mac radio link. Updated Mac packages,
+installation of this preview, OS pairing/permissions and real bidirectional
+clipboard verification remain separate gates. See [Bluetooth setup and exact
+verification boundaries](BLUETOOTH.md).
 
 ## Validation
 
