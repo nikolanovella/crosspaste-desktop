@@ -22,11 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Alternate macOS pools avoid rebuilding Windows for a queued-runner failure.
+        # ARM glass APIs require the macOS 26 SDK; keep both Mac architectures.
         include: >-
           ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.macos_only &&
-          '[{"runner":"macos-15","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]' ||
-          '[{"runner":"windows-latest","package":"Windows-x64"},{"runner":"macos-15","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]') }}
+          '[{"runner":"macos-26","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]' ||
+          '[{"runner":"windows-latest","package":"Windows-x64"},{"runner":"macos-26","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:

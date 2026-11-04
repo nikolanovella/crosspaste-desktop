@@ -57,6 +57,13 @@ CREATE TRIGGER SharedClipboardCaptureRetain AFTER INSERT ON SharedClipboardCaptu
     VALUES (new.clipboardId, new.localPasteId);
 END;
 
+CREATE TABLE SharedClipboardMemberEntity (
+    clipboardId TEXT NOT NULL,
+    deviceId TEXT NOT NULL,
+    signingPublicKey TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, deviceId)
+);
+
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
 VALUES (?, ?, ?);
@@ -104,3 +111,12 @@ SELECT EXISTS(SELECT 1 FROM SharedClipboardRetentionEntity WHERE localPasteId = 
 
 releaseRetention:
 DELETE FROM SharedClipboardRetentionEntity WHERE clipboardId = ? AND localPasteId = ?;
+
+getMember:
+SELECT * FROM SharedClipboardMemberEntity WHERE clipboardId = ? AND deviceId = ?;
+
+getMembers:
+SELECT * FROM SharedClipboardMemberEntity WHERE clipboardId = ? ORDER BY deviceId;
+
+insertMember:
+INSERT INTO SharedClipboardMemberEntity VALUES (?, ?, ?);

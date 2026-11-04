@@ -22,6 +22,14 @@ with events through relays and are verified again after restart. This does not
 automatically establish membership: a key provided by the event itself is never
 accepted as evidence of trust.
 
+`ClipboardMembershipStore` persists explicitly approved P-256 public signing keys
+per clipboard (migration 11). Creating a clipboard and approving its local member
+commit together. Approval is idempotent for the same key and rejects replacement
+of an existing device's key. Verification can reload approved identities from SQL
+without depending on which transport is connected. This store is not an invitation
+verifier: network enrollment still needs paired-peer authentication and a local
+approval flow. It never enrolls a key merely because an event contains it.
+
 `DesktopClipboardJournalStore` writes a separate metadata snapshot using a flushed
 temporary file and atomic replacement. Storage failure must leave the previous
 snapshot and in-memory sequence intact. Corrupt or wrong-clipboard data fails
@@ -61,8 +69,8 @@ moves or deletion, nor another row's managed files referenced indirectly.
 
 ## Required before live use
 
-- Connect explicitly approved clipboard membership to the signature-verification
-  resolver. Authenticated transport alone does not establish that membership.
+- Connect the approved SQL membership resolver to the live invitation and sync
+  services. Authenticated transport alone does not establish clipboard membership.
 - Wire the capture consumer into the app lifecycle after payload retention and
   approved membership are ready; finish edits/deletions and incoming materialization.
 - Finish immutable snapshots of external/indirect file references and safe global
