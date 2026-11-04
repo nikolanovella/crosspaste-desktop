@@ -8,6 +8,10 @@ Default to communicating with developers in Chinese (中文), unless explicitly 
 
 ## Build Commands
 
+Fork requirement: Always name built/distributed apps, installers, archives,
+artifacts, and release downloads with their target OS and architecture. Use
+`Windows-x64`, `macOS-AppleSilicon`, or `macOS-Intel` as appropriate; see `FORK.md`.
+
 CrossPaste is a Kotlin Multiplatform application using Gradle. Key commands:
 
 - **Run the application**: `./gradlew app:run`

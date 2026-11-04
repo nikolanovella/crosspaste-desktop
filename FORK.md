@@ -28,6 +28,12 @@ Personal Windows–Mac clipboard workspace, forked from
 
 ## Working layout
 
+**Build naming requirement:** Always include the target OS in every distributable
+app/package, installer, archive, artifact, and release download name. Include the
+architecture too: for example `CrossPaste-Workbench-Windows-x64`,
+`CrossPaste-Workbench-macOS-AppleSilicon`, and `CrossPaste-Workbench-macOS-Intel`.
+Never publish an ambiguously named cross-platform download.
+
 Keep upstream modules and package paths in place so later upstream fixes remain
 straightforward to merge. Fork-specific documentation lives in `doc/fork/`.
 Feature work belongs in the existing module that owns the behavior, on a focused
