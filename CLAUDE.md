@@ -12,6 +12,10 @@ Fork requirement: Always name built/distributed apps, installers, archives,
 artifacts, and release downloads with their target OS and architecture. Use
 `Windows-x64`, `macOS-AppleSilicon`, or `macOS-Intel` as appropriate; see `FORK.md`.
 
+Fork UI requirement: Extend the existing CrossPaste navigation, theme, settings
+cards, history menus, and shared controls. Integrate new features into that UI;
+do not introduce a parallel application shell or editor window unless requested.
+
 CrossPaste is a Kotlin Multiplatform application using Gradle. Key commands:
 
 - **Run the application**: `./gradlew app:run`

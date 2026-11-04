@@ -153,6 +153,20 @@ All 34 focused regression tests passed, including the four device-participation
 combinations, queued-write policy changes, configuration persistence, and local UI
 activation validation. The Windows package is built and installed. The integrated
 editor was visually confirmed in the original sidebar/theme, with the draft intact.
-Subsequent click testing was blocked by shell cloaking: Windows reported the main
+Initial click testing was blocked by shell cloaking: Windows reported the main
 window visible and on the current desktop, but DWM cloaked it and screen control
 could not target it. No Alt+Tab, Stage Manager, or MyDockFinder setting was changed.
+
+The subsequent live native-UI session verified all four recording/shared-paste
+switch combinations against the saved configuration, then restored both switches
+to on. It also imported a test clip, edited its derived block, displayed its
+unchanged original, saved a separate clipboard entry, and merged two selected
+history entries into a persisted two-block group. The paired Mac was confirmed
+CONNECTED through both the native Devices page and the local device API.
+
+The live drag attempt exposed a gesture conflict with list scrolling. The repair
+uses an immediate vertical drag handle, clears offscreen hit-test bounds, and
+tests visible drop targets and viewport insertion boundaries. The full focused
+suite passed 36 tests before the gesture refinement; the final Workbench suite
+passed all 16 tests. The repaired gesture still needs its last live drop test;
+foreground access was interrupted before that test could be completed.
