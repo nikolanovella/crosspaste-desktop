@@ -42,7 +42,7 @@ internal fun BluetoothDevicesCard() {
     val candidates = devices.filter { if (platform.isWindows()) it.platform.isMacos() else it.platform.isWindows() }
     var selectedId by remember { mutableStateOf<String?>(null) }
     val selected = candidates.firstOrNull { it.appInstanceId == selectedId } ?: candidates.firstOrNull()
-    var address by remember { mutableStateOf("") }
+    var address by remember(selected?.appInstanceId) { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
