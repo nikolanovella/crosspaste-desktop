@@ -16,12 +16,14 @@ import kotlinx.serialization.json.Json
 data class ClipboardHistoryRequest(
     val cursor: Map<String, Long>,
     val limit: Int = 50,
+    val admissions: List<ClipboardAdmission> = emptyList(),
 )
 
 @Serializable
 data class ClipboardHistoryBatch(
     val clipboard: String,
     val changes: List<SignedClipboardChange>,
+    val admissions: List<ClipboardAdmission> = emptyList(),
 )
 
 /** Shared history is independent of the current OS clipboard and the automatic-paste switch. */
@@ -32,13 +34,14 @@ class ClipboardHistoryService(
     serializer: SecureKeyPairSerializer,
 ) {
     private val members = ClipboardMembershipStore(database, serializer)
+    private val admissions = ClipboardAdmissionStore(database, serializer)
     private val mutex = Mutex()
 
     suspend fun read(verified: VerifiedClipboardPeerRequest): ClipboardHistoryBatch =
         mutex.withLock {
             val request = verified.request
             require(request.operation == ClipboardPeerOperation.HISTORY && request.target == localDevice)
-            requireMember(request.clipboard, request.sender)
+            requirePairedWorkspace(request.clipboard, request.sender)
             val query = Json.decodeFromString<ClipboardHistoryRequest>(request.payload)
             require(query.limit in 1..100 && query.cursor.size <= 256)
             require(
@@ -48,11 +51,31 @@ class ClipboardHistoryService(
                         sequence >= 0
                 },
             )
-            val journal = open(request.clipboard)
-            ClipboardHistoryBatch(request.clipboard, journal.missing(query.cursor, query.limit))
+            require(query.admissions.size <= 32)
+            val proofs =
+                (
+                    admissions.all(
+                        request.clipboard,
+                    ) + query.admissions
+                ).distinctBy { it.proposal.claim.recipient.deviceId }
+            // Validate every supplied proof, including alternate receipts for an existing member.
+            val plan = admissions.prepare(request.clipboard, query.admissions)
+            require(request.sender in plan.keys) { "Device has no approved clipboard admission" }
+            admissions.prepare(request.clipboard, proofs)
+            val journal = open(request.clipboard, admissionPlan = plan)
+            val changes = journal.missing(query.cursor, query.limit)
+            database.transaction { admissions.commit(plan) }
+            ClipboardHistoryBatch(request.clipboard, changes, proofs)
         }
 
     suspend fun cursor(clipboard: String): Map<String, Long> = mutex.withLock { open(clipboard).cursor() }
+
+    internal suspend fun admissionProofs(clipboard: String): List<ClipboardAdmission> =
+        mutex.withLock {
+            // The puller's cursor has already verified history. This separate public-key
+            // bundle needs membership/proof validation, not a second full event scan.
+            admissions.all(clipboard).also { admissions.prepare(clipboard, it) }
+        }
 
     /** File access requires a current live head, not merely an old event retained in history. */
     suspend fun fileContext(
@@ -201,13 +224,27 @@ class ClipboardHistoryService(
             val batch = Json.decodeFromString<ClipboardHistoryBatch>(reply.payload)
             require(batch.clipboard == request.clipboard && batch.changes.size <= query.limit)
             val store = SqlSignedClipboardStore(database, request.clipboard)
-            val before = store.load().changes.size
-            val journal = open(request.clipboard, store)
+            val before = store.load()
+            val plan = admissions.prepare(request.clipboard, batch.admissions)
+            var staged = before
+            val journal = open(request.clipboard, SignedClipboardStore { staged = it }, before, plan)
             journal.ingest(batch.changes)
-            store.load().changes.size - before
+            database.transaction {
+                admissions.commit(plan)
+                store.save(staged)
+            }
+            staged.changes.size - before.changes.size
         }
 
     private suspend fun requireMember(
+        clipboard: String,
+        peer: String,
+    ) {
+        requirePairedWorkspace(clipboard, peer)
+        requireNotNull(members.signingKey(clipboard, peer)) { "Device is not a clipboard member" }
+    }
+
+    private suspend fun requirePairedWorkspace(
         clipboard: String,
         peer: String,
     ) {
@@ -220,13 +257,13 @@ class ClipboardHistoryService(
         ) {
             "Clipboard is not joined"
         }
-        requireNotNull(members.signingKey(clipboard, peer)) { "Device is not a clipboard member" }
     }
 
     private suspend fun open(
         clipboard: String,
-        store: SqlSignedClipboardStore = SqlSignedClipboardStore(database, clipboard),
-        snapshot: SignedClipboardSnapshot = store.load(),
+        store: SignedClipboardStore = SqlSignedClipboardStore(database, clipboard),
+        snapshot: SignedClipboardSnapshot = SqlSignedClipboardStore(database, clipboard).load(),
+        admissionPlan: ClipboardAdmissionStore.Plan? = null,
     ): SignedClipboardJournal {
         require(
             database.sharedClipboardDatabaseQueries
@@ -244,7 +281,10 @@ class ClipboardHistoryService(
         return SignedClipboardJournal.open(
             localDevice,
             secureStore.secureKeyPair.signKeyPair.privateKey,
-            { members.signingKey(clipboard, it) },
+            { device ->
+                admissionPlan?.let { admissions.signingKey(it, device) }
+                    ?: members.signingKey(clipboard, device)
+            },
             snapshot,
             store,
         )
@@ -268,6 +308,8 @@ class ClipboardHistoryPuller(
     ): Int {
         require(limit in 1..100)
         val cursor = history.cursor(clipboard)
-        return history.ingest(client.history(peer, clipboard, ClipboardHistoryRequest(cursor, limit)))
+        return history.ingest(
+            client.history(peer, clipboard, ClipboardHistoryRequest(cursor, limit, history.admissionProofs(clipboard))),
+        )
     }
 }

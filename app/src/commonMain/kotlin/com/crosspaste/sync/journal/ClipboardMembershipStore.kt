@@ -44,6 +44,7 @@ class ClipboardMembershipStore(
             require(queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled == true) { "Clipboard not joined" }
             val existing = queries.getMember(clipboard, device).executeAsOneOrNull()
             if (existing == null) {
+                require(queries.getMembers(clipboard).executeAsList().size < 32) { "Clipboard device limit reached" }
                 queries.insertMember(clipboard, device, encoded)
             } else {
                 require(
@@ -79,6 +80,7 @@ class ClipboardMembershipStore(
         localKey: ECDSA.PublicKey,
         members: List<ClipboardMemberKey>,
         contributeLocal: Boolean,
+        onJoined: () -> Unit = {},
     ) {
         require(clipboard.isNotBlank() && clipboard.length <= 256 && localDevice.isNotBlank())
         require(members.size in 1..32 && members.map { it.deviceId }.toSet().size == members.size)
@@ -104,6 +106,11 @@ class ClipboardMembershipStore(
             } else {
                 require(existingWorkspace.enabled) { "Existing clipboard is disabled" }
             }
+            require(
+                (queries.getMembers(clipboard).executeAsList().map { it.deviceId } + approved.keys).toSet().size <= 32,
+            ) {
+                "Clipboard device limit reached"
+            }
             approved.forEach { (device, key) ->
                 val previous = queries.getMember(clipboard, device).executeAsOneOrNull()
                 if (previous == null) {
@@ -112,6 +119,7 @@ class ClipboardMembershipStore(
                     require(previous.signingPublicKey == key) { "Invitation replaces an approved identity" }
                 }
             }
+            onJoined()
         }
     }
 }

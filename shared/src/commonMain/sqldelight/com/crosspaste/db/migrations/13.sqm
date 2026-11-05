@@ -1,0 +1,6 @@
+CREATE TABLE SharedClipboardAdmissionEntity (
+    clipboardId TEXT NOT NULL,
+    deviceId TEXT NOT NULL,
+    proof TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, deviceId)
+);

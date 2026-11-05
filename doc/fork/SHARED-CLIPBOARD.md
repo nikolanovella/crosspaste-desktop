@@ -228,7 +228,7 @@ history is retained when recording is off. No workspace is created or enabled
 automatically during startup.
 
 This is not yet installed. Before enabling the full product flow, finish native
-setup verification/membership propagation, shared deletion/cache policy and coexistence with
+setup/device verification, shared deletion/cache policy and coexistence with
 legacy live sync so a copy cannot appear twice through the two protocols.
 
 ## Native history projection
@@ -264,10 +264,38 @@ it does not silently create a permanently loading item. This is a transport
 capability distinction, not a reason to drop empty content from shared history.
 The installed build has not been replaced with this source flow yet.
 
+## Admission propagation between replicas
+
+New invitations carry a sponsor-signed proposal binding the clipboard, invitation,
+recipient signing key and exact offered roster. Only the receiving device's local
+Accept action (or previously persisted consent to that exact roster) produces the
+recipient's countersignature. An authenticated status response without that signed
+consent cannot complete a new invitation.
+
+History requests and response batches carry the portable admission proofs. A receiving replica requires
+an already approved sponsor, verifies both signatures, and admits only the named
+recipient; extra public keys in a roster or an event do not enroll themselves.
+Unordered chains must lead back to an existing trust anchor. Known identities
+cannot be replaced, and all paths enforce the 32-device bound.
+
+Incoming admissions and history are staged and verified before one SQL transaction
+commits them. A bad original event rolls back the whole batch, including new
+membership. Migration 13 adds the proof table (schema version 14); existing history,
+members and recording preferences are preserved. Proofs survive restart and relay,
+so each pair of devices does not need a separate transport pairing. A usable paired
+route to an approved replica is still necessary. A new member presents its proof
+when pulling, so another replica can admit it while the original inviter is offline.
+A proof for some other device cannot authorize the paired caller.
+
+This implementation is source-only. Actual Windows/Mac invitation, offline and
+reconnection UI verification remains required before installation. Both devices
+must support the new invitation fields; legacy clients do not provide the signed
+consent needed to finish a new-style invitation.
+
 ## Required before live use
 
-- Propagate verified new-member admission to the other existing replicas; do not
-  enroll public keys supplied only by received clipboard events.
+- Verify admission propagation on the installed Windows/Mac devices. The source
+  carries dual-signed proofs; public keys supplied only by events remain untrusted.
 - Complete shared edits/deletions, local cache release and retention cleanup UI.
   Historical metadata endpoints and private bytes must obey the final policy.
 - Handle originals moved/deleted before an external-file snapshot finishes; expose

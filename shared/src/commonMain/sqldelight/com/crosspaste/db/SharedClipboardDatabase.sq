@@ -76,6 +76,13 @@ CREATE TABLE SharedClipboardProjectionEntity (
     PRIMARY KEY (clipboardId, eventDevice, eventSequence)
 );
 
+CREATE TABLE SharedClipboardAdmissionEntity (
+    clipboardId TEXT NOT NULL,
+    deviceId TEXT NOT NULL,
+    proof TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, deviceId)
+);
+
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
 VALUES (?, ?, ?);
@@ -158,3 +165,12 @@ WHERE clipboardId = ? AND eventDevice = ? AND eventSequence = ?;
 
 retainPaste:
 INSERT OR IGNORE INTO SharedClipboardRetentionEntity(clipboardId, localPasteId) VALUES (?, ?);
+
+getAdmission:
+SELECT * FROM SharedClipboardAdmissionEntity WHERE clipboardId = ? AND deviceId = ?;
+
+getAdmissions:
+SELECT * FROM SharedClipboardAdmissionEntity WHERE clipboardId = ? ORDER BY deviceId;
+
+insertAdmission:
+INSERT INTO SharedClipboardAdmissionEntity VALUES (?, ?, ?);

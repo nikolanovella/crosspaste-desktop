@@ -54,7 +54,12 @@ class ClipboardInvitationServiceTest {
             return b.receive(assertNotNull(peers.b.verify("a", proof, ClipboardPeerOperation.PROPOSE_JOIN)))
         }
 
-        suspend fun poll(offer: ClipboardInvitation): VerifiedClipboardPeerReply {
+        suspend fun poll(
+            offer: ClipboardInvitation,
+            transform: (ClipboardInvitationStatus) -> ClipboardInvitationStatus = {
+                it
+            },
+        ): VerifiedClipboardPeerReply {
             val proof =
                 peers.a.prove(
                     "b",
@@ -64,7 +69,7 @@ class ClipboardInvitationServiceTest {
                     Json.encodeToString(ClipboardInvitationLookup(offer.id)),
                 )
             val verified = assertNotNull(peers.b.verify("a", proof, ClipboardPeerOperation.JOIN_STATUS))
-            val response = peers.b.reply(verified, Json.encodeToString(b.status(verified)))
+            val response = peers.b.reply(verified, Json.encodeToString(transform(b.status(verified))))
             return assertNotNull(peers.a.verifiedReply("b", proof.request, response))
         }
     }
@@ -96,6 +101,11 @@ class ClipboardInvitationServiceTest {
             assertEquals(ClipboardInvitationState.ACCEPTED, f.a.confirm(accepted))
             assertNotNull(f.aMembers.signingKey("shared", "b"))
             assertNotNull(f.bMembers.signingKey("shared", "a"))
+            assertEquals(1, ClipboardAdmissionStore(f.aDb, f.serializer).all("shared").size)
+            assertEquals(
+                ClipboardAdmissionStore(f.aDb, f.serializer).all("shared"),
+                ClipboardAdmissionStore(f.bDb, f.serializer).all("shared"),
+            )
             assertEquals(
                 false,
                 f.aDb.sharedClipboardDatabaseQueries
@@ -212,6 +222,19 @@ class ClipboardInvitationServiceTest {
                     .executeAsOne()
                     .contributeLocal,
             )
+        }
+
+    @Test
+    fun `paired acceptance without matching signed consent cannot enroll`() =
+        runTest {
+            val f = fixture()
+            val offer = f.offer()
+            f.deliver(offer)
+            f.b.accept(offer.id, false)
+            assertFailsWith<IllegalArgumentException> { f.a.confirm(f.poll(offer) { it.copy(admission = null) }) }
+            assertNull(f.aMembers.signingKey("shared", "b"))
+            assertTrue(ClipboardAdmissionStore(f.aDb, f.serializer).all("shared").isEmpty())
+            assertEquals(ClipboardInvitationState.ACCEPTED, f.a.confirm(f.poll(offer)))
         }
 
     @Test

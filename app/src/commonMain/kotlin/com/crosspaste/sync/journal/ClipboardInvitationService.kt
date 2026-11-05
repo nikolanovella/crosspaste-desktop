@@ -27,6 +27,7 @@ data class ClipboardInvitation(
     val inviter: String,
     val recipient: String,
     val members: List<ClipboardMemberKey>,
+    val admissionProposal: ClipboardAdmissionProposal? = null,
 )
 
 @Serializable
@@ -43,6 +44,7 @@ data class ClipboardInvitationStatus(
     val clipboard: String,
     val state: ClipboardInvitationState,
     val signingPublicKey: String? = null,
+    val admission: ClipboardAdmission? = null,
 )
 
 /** Incoming network requests can propose and query only. Acceptance is a separate local UI action. */
@@ -67,6 +69,7 @@ class ClipboardInvitationService(
     )
 
     private val members = ClipboardMembershipStore(database, serializer)
+    private val admissions = ClipboardAdmissionStore(database, serializer)
     private val codecs = getCodecsUtils()
     private val mutex = Mutex()
     private val incoming = mutableMapOf<String, Pending>()
@@ -104,13 +107,26 @@ class ClipboardInvitationService(
             require(known.any { it.deviceId == localDevice && it.signingPublicKey == ownKey })
             known.firstOrNull { it.deviceId == identity.deviceId }?.let { require(it.signingPublicKey == key) }
             require(outgoing.size < MAX_PENDING)
+            val invitationId = codecs.base64Encode(CryptographyRandom.nextBytes(16))
+            val proposal =
+                admissions.propose(
+                    ClipboardAdmissionClaim(
+                        clipboard,
+                        invitationId,
+                        localDevice,
+                        ClipboardMemberKey(identity.deviceId, key),
+                        known,
+                    ),
+                    secureStore.secureKeyPair.signKeyPair.privateKey,
+                )
             val offer =
                 ClipboardInvitation(
-                    codecs.base64Encode(CryptographyRandom.nextBytes(16)),
+                    invitationId,
                     clipboard,
                     localDevice,
                     identity.deviceId,
                     known,
+                    proposal,
                 )
             outgoing[offer.id] = Outgoing(offer, key, now())
             offer
@@ -143,12 +159,15 @@ class ClipboardInvitationService(
             }
             require(incoming.size < MAX_PENDING)
             val approved = alreadyApproved(offer)
+            val existingConsent = if (approved) consentFor(offer) else null
+            if (existingConsent != null) database.transaction { admissions.recordConsented(existingConsent) }
             val status =
                 ClipboardInvitationStatus(
                     offer.id,
                     offer.clipboard,
                     if (approved) ClipboardInvitationState.ACCEPTED else ClipboardInvitationState.PENDING,
                     if (approved) ownKey() else null,
+                    existingConsent,
                 )
             incoming[offer.id] = Pending(offer, now(), status)
             publish()
@@ -168,14 +187,21 @@ class ClipboardInvitationService(
             require(pending.status.state == ClipboardInvitationState.PENDING)
             val key = secureStore.secureKeyPair.signKeyPair.publicKey
             val encoded = codecs.base64Encode(serializer.encodeSignPublicKey(key))
+            val consent = consentFor(pending.offer)
             members.joinApprovedClipboard(
                 pending.offer.clipboard,
                 localDevice,
                 key,
                 pending.offer.members,
                 contributeLocal,
+                onJoined = { consent?.let(admissions::recordConsented) },
             )
-            pending.status = pending.status.copy(state = ClipboardInvitationState.ACCEPTED, signingPublicKey = encoded)
+            pending.status =
+                pending.status.copy(
+                    state = ClipboardInvitationState.ACCEPTED,
+                    signingPublicKey = encoded,
+                    admission = consent,
+                )
             publish()
             pending.status
         }
@@ -222,15 +248,38 @@ class ClipboardInvitationService(
             if (status.state == ClipboardInvitationState.ACCEPTED) {
                 val accepted = canonicalKey(requireNotNull(status.signingPublicKey))
                 require(accepted == pending.expectedKey) { "Device signing identity changed while joining" }
-                members.approveMember(
-                    pending.offer.clipboard,
-                    reply.peer,
-                    serializer.decodeSignPublicKey(codecs.base64Decode(accepted)),
-                )
+                val proposal = pending.offer.admissionProposal
+                if (proposal != null) {
+                    val admission = requireNotNull(status.admission) { "Device did not provide signed join consent" }
+                    require(admission.proposal == proposal) { "Consent belongs to another invitation" }
+                    val plan = admissions.prepare(pending.offer.clipboard, listOf(admission))
+                    database.transaction { admissions.commit(plan) }
+                } else {
+                    members.approveMember(
+                        pending.offer.clipboard,
+                        reply.peer,
+                        serializer.decodeSignPublicKey(codecs.base64Decode(accepted)),
+                    )
+                }
             }
             pending.state = status.state
             status.state
         }
+
+    private suspend fun consentFor(offer: ClipboardInvitation): ClipboardAdmission? {
+        val proposal = offer.admissionProposal ?: return null
+        require(
+            proposal.claim ==
+                ClipboardAdmissionClaim(
+                    offer.clipboard,
+                    offer.id,
+                    offer.inviter,
+                    ClipboardMemberKey(localDevice, ownKey()),
+                    offer.members,
+                ),
+        ) { "Admission proposal does not match invitation" }
+        return admissions.consent(proposal, secureStore.secureKeyPair.signKeyPair.privateKey)
+    }
 
     /** A restart may lose the pending receipt, but not consent already committed to SQL. */
     private suspend fun alreadyApproved(offer: ClipboardInvitation): Boolean {
