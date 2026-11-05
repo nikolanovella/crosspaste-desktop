@@ -70,28 +70,45 @@ class ClipboardHistoryService(
                     ),
             )
             requireMember(request.clipboard, request.sender)
-            val store = SqlSignedClipboardStore(database, request.clipboard)
-            val snapshot = store.load()
-            open(request.clipboard, store, snapshot)
-            val head =
-                ClipboardJournal(
-                    localDevice,
-                    ClipboardJournalSnapshot(
-                        request.clipboard,
-                        snapshot.changes.map { it.change },
-                    ),
-                ) {}.allHeads().singleOrNull { it.id == event && !it.deleted }
-            requireNotNull(head) { "File capture is no longer active in this clipboard" }
-            val signed = snapshot.changes.single { it.change.id == head.id }
-            val hash = requireNotNull(head.contentHash)
-            val metadata =
-                requireNotNull(
-                    database.sharedClipboardDatabaseQueries
-                        .getPayload(request.clipboard, hash)
-                        .executeAsOneOrNull(),
-                )
-            ClipboardFileContext(signed, metadata.encodeToByteArray())
+            activeFileContext(request.clipboard, event)
         }
+
+    suspend fun receivingFileContext(
+        peer: String,
+        clipboard: String,
+        event: ClipboardEventId,
+    ): ClipboardFileContext =
+        mutex.withLock {
+            requireMember(clipboard, peer)
+            activeFileContext(clipboard, event)
+        }
+
+    private suspend fun activeFileContext(
+        clipboard: String,
+        event: ClipboardEventId,
+    ): ClipboardFileContext {
+        val store = SqlSignedClipboardStore(database, clipboard)
+        val snapshot = store.load()
+        open(clipboard, store, snapshot)
+        val head =
+            ClipboardJournal(
+                localDevice,
+                ClipboardJournalSnapshot(
+                    clipboard,
+                    snapshot.changes.map { it.change },
+                ),
+            ) {}.allHeads().singleOrNull { it.id == event && !it.deleted }
+        requireNotNull(head) { "File capture is no longer active in this clipboard" }
+        val signed = snapshot.changes.single { it.change.id == head.id }
+        val hash = requireNotNull(head.contentHash)
+        val metadata =
+            requireNotNull(
+                database.sharedClipboardDatabaseQueries
+                    .getPayload(clipboard, hash)
+                    .executeAsOneOrNull(),
+            )
+        return ClipboardFileContext(signed, metadata.encodeToByteArray())
+    }
 
     suspend fun snapshot(clipboard: String): SignedClipboardSnapshot =
         mutex.withLock {

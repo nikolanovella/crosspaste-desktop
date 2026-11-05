@@ -32,6 +32,20 @@ internal class DesktopClipboardBlobStore(
         expectedSize: Long,
         expectedCaptureHash: String,
         maximumBytes: Long,
+    ): ClipboardBlob = ingest(source, expectedSize, expectedCaptureHash, maximumBytes, null)
+
+    suspend fun importVerified(
+        source: Path,
+        descriptor: ClipboardBlob,
+        maximumBytes: Long,
+    ): ClipboardBlob = ingest(source, descriptor.size, descriptor.captureHash, maximumBytes, descriptor.sha256)
+
+    private suspend fun ingest(
+        source: Path,
+        expectedSize: Long,
+        expectedCaptureHash: String,
+        maximumBytes: Long,
+        expectedSha256: String?,
     ): ClipboardBlob =
         withContext(Dispatchers.IO) {
             mutex.withLock {
@@ -74,6 +88,7 @@ internal class DesktopClipboardBlobStore(
                         }
                     require(legacy == expectedCaptureHash) { "Clipboard source content changed after capture" }
                     val hash = HexFormat.of().formatHex(digest.digest())
+                    require(expectedSha256 == null || hash == expectedSha256) { "Received file SHA-256 did not verify" }
                     val descriptor = ClipboardBlob(hash, copied, legacy)
                     val target = path(hash)
                     Files.createDirectories(target.parent)

@@ -171,8 +171,18 @@ historical events alone do not grant file access. Manifests transfer in bounded
 chunks; blob range requests must name a digest in that capture's original-signed
 manifest. A relay serves the original signature instead of signing as the author.
 
-These services are source-only. The receiver still needs complete manifest/blob
-assembly and whole-file verification, safe destination landing and runtime activation.
+The source receiver assembles bounded manifest chunks and verifies the original
+signature before downloading referenced blobs. Each file streams through private
+staging; size, captured Murmur hash and full SHA-256 must match before atomic blob
+publication. Interrupted or invalid transfers remove their staging file. Already
+verified blobs can be reused, but both manifest and total file budgets still apply.
+Only after every representation is present is the signed manifest committed.
+
+Receiving requires an enabled local workspace, paired approved source and the exact
+active event/metadata already accepted into local history. This is checked again
+before manifest publication. It does not write the OS clipboard or create native
+history rows. These services remain source-only; safe destination landing and
+runtime activation are unfinished.
 
 ## Native history projection
 

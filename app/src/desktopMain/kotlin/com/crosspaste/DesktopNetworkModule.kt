@@ -83,6 +83,7 @@ import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
 import com.crosspaste.sync.journal.ClipboardFileManifestVerifier
+import com.crosspaste.sync.journal.ClipboardFileTransfer
 import com.crosspaste.sync.journal.ClipboardFileTransferService
 import com.crosspaste.sync.journal.ClipboardHistoryMaterializer
 import com.crosspaste.sync.journal.ClipboardHistoryPuller
@@ -95,6 +96,7 @@ import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
 import com.crosspaste.sync.journal.DesktopClipboardBlobStore
 import com.crosspaste.sync.journal.DesktopClipboardFileManifestStore
+import com.crosspaste.sync.journal.DesktopClipboardFileReceiver
 import com.crosspaste.sync.journal.DesktopClipboardFileSnapshotter
 import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
@@ -154,6 +156,17 @@ fun desktopNetworkModule(
             )
         }
         single { ClipboardPayloadTransfer(get()) }
+        single { ClipboardFileTransfer(get(), get()) }
+        single {
+            DesktopClipboardFileReceiver(
+                get(),
+                get(),
+                get(),
+                get(),
+                get(),
+                get<AppPathProvider>().pasteUserPath.resolve("shared-clipboard-file-staging").toNioPath(),
+            )
+        }
         single {
             val manifests = get<DesktopClipboardFileManifestStore>()
             val blobs = get<DesktopClipboardBlobStore>()
