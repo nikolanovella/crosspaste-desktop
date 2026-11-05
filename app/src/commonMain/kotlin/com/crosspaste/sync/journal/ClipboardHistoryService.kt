@@ -54,6 +54,14 @@ class ClipboardHistoryService(
 
     suspend fun cursor(clipboard: String): Map<String, Long> = mutex.withLock { open(clipboard).cursor() }
 
+    suspend fun snapshot(clipboard: String): SignedClipboardSnapshot =
+        mutex.withLock {
+            val store = SqlSignedClipboardStore(database, clipboard)
+            val snapshot = store.load()
+            open(clipboard, store, snapshot)
+            snapshot
+        }
+
     suspend fun payload(verified: VerifiedClipboardPeerRequest): ClipboardPayloadChunk =
         mutex.withLock {
             val request = verified.request
@@ -162,6 +170,7 @@ class ClipboardHistoryService(
     private suspend fun open(
         clipboard: String,
         store: SqlSignedClipboardStore = SqlSignedClipboardStore(database, clipboard),
+        snapshot: SignedClipboardSnapshot = store.load(),
     ): SignedClipboardJournal {
         require(
             database.sharedClipboardDatabaseQueries
@@ -180,7 +189,7 @@ class ClipboardHistoryService(
             localDevice,
             secureStore.secureKeyPair.signKeyPair.privateKey,
             { members.signingKey(clipboard, it) },
-            store.load(),
+            snapshot,
             store,
         )
     }

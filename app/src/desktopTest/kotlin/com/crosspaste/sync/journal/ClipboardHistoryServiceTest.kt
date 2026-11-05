@@ -5,7 +5,12 @@ import com.crosspaste.db.TestDriverFactory
 import com.crosspaste.db.createDatabase
 import com.crosspaste.dto.sync.ControlChallenge
 import com.crosspaste.paste.PasteCollection
+import com.crosspaste.paste.PasteData
+import com.crosspaste.paste.PasteState
+import com.crosspaste.paste.item.CreatePasteItemHelper.createFilesPasteItem
 import com.crosspaste.paste.item.CreatePasteItemHelper.createTextPasteItem
+import com.crosspaste.paste.item.PasteText
+import com.crosspaste.presist.SingleFileInfoTree
 import com.crosspaste.secure.SecureKeyPairSerializer
 import com.crosspaste.secure.SecureStore
 import com.crosspaste.utils.getCodecsUtils
@@ -116,13 +121,14 @@ class ClipboardHistoryServiceTest {
     private suspend fun preparePayload(
         f: HistoryFixture,
         text: String,
+        sourceId: Long = 42,
     ): Pair<String, ByteArray> {
         getJsonUtils()
         val item = createTextPasteItem(text = text)
         val payload =
             CapturedClipboardPayload(
                 "b",
-                42,
+                sourceId,
                 item.toStoredJson(),
                 PasteCollection(emptyList()).toStoredJson(),
                 0,
@@ -141,10 +147,201 @@ class ClipboardHistoryServiceTest {
                         .hash(bytes),
                 )
         f.bDb.sharedClipboardDatabaseQueries.insertPayload("shared", hash, bytes.decodeToString())
-        journal(f.bDb, "b", f.peers.bStore).append(Json.encodeToString(listOf("capture/v1", "b", "42")), hash)
+        journal(
+            f.bDb,
+            "b",
+            f.peers.bStore,
+        ).append(Json.encodeToString(listOf("capture/v1", "b", sourceId.toString())), hash)
         ClipboardHistoryPuller(f.client(true), f.a).pull("shared", "b")
         return hash to bytes
     }
+
+    private fun rows(f: HistoryFixture): List<PasteData> =
+        f.aDb.pasteDatabaseQueries
+            .getBatchPasteData(-1, 100, PasteData::mapper)
+            .executeAsList()
+
+    @Test
+    fun `verified remote content publishes once into native history and survives reconnect`() =
+        runTest {
+            val f = historyFixture()
+            val (hash, bytes) = preparePayload(f, "shared text")
+            f.a.storePayload("shared", hash, bytes)
+            val renders = mutableListOf<Long>()
+            val materializer =
+                ClipboardHistoryMaterializer(f.aDb, f.a, "a", { "search:" + it.hash }, { id, _ -> renders.add(id) })
+            assertEquals(1, materializer.materialize("shared").created)
+            val row = rows(f).single()
+            assertEquals("shared text", row.getPasteItem(PasteText::class)?.text)
+            assertEquals("b", row.appInstanceId)
+            assertEquals(true, row.remote)
+            assertEquals(PasteState.LOADED, row.pasteState)
+            assertEquals(listOf(row.id), renders)
+            assertEquals(
+                true,
+                f.aDb.sharedClipboardDatabaseQueries
+                    .isPasteRetained(row.id)
+                    .executeAsOne(),
+            )
+            val restarted =
+                ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> error("Must not render twice") })
+            assertEquals(0, restarted.materialize("shared").created)
+            assertEquals(1, rows(f).size)
+        }
+
+    @Test
+    fun `missing metadata waits without creating a fake loaded row`() =
+        runTest {
+            val f = historyFixture()
+            val (hash, bytes) = preparePayload(f, "waiting")
+            val materializer = ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> })
+            val waiting = materializer.materialize("shared")
+            assertEquals(setOf(hash), waiting.missingPayloads)
+            assertTrue(rows(f).isEmpty())
+            f.a.storePayload("shared", hash, bytes)
+            assertEquals(1, materializer.materialize("shared").created)
+        }
+
+    @Test
+    fun `projection failure rolls back content retention and event mapping together`() =
+        runTest {
+            val f = historyFixture()
+            val (first, one) = preparePayload(f, "first", 42)
+            val (second, two) = preparePayload(f, "second", 43)
+            f.a.storePayload("shared", first, one)
+            f.a.storePayload("shared", second, two)
+            var calls = 0
+            val materializer =
+                ClipboardHistoryMaterializer(f.aDb, f.a, "a", {
+                    calls++
+                    if (calls == 2) error("Fixture search indexing failed")
+                    null
+                }, { _, _ -> error("No rendering before complete transaction") })
+            assertFailsWith<IllegalStateException> { materializer.materialize("shared") }
+            assertEquals(2, calls)
+            assertTrue(rows(f).isEmpty())
+            assertTrue(
+                f.aDb.sharedClipboardDatabaseQueries
+                    .getPendingProjectionRendering("shared", 100)
+                    .executeAsList()
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `render failure remains pending and retries without duplicating history`() =
+        runTest {
+            val f = historyFixture()
+            val (hash, bytes) = preparePayload(f, "render retry")
+            f.a.storePayload("shared", hash, bytes)
+            val failing =
+                ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> error("Fixture renderer offline") })
+            assertFailsWith<IllegalStateException> { failing.materialize("shared") }
+            assertEquals(1, rows(f).size)
+            val renders = mutableListOf<Long>()
+            val restarted = ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { id, _ -> renders.add(id) })
+            assertEquals(0, restarted.materialize("shared").created)
+            assertEquals(1, renders.size)
+            assertTrue(
+                f.aDb.sharedClipboardDatabaseQueries
+                    .getPendingProjectionRendering("shared", 100)
+                    .executeAsList()
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun `local captures reuse their existing native row`() =
+        runTest {
+            val f = historyFixture()
+            getJsonUtils()
+            val item = createTextPasteItem(text = "already local")
+            f.aDb.pasteDatabaseQueries.createPasteDataEntity(
+                "a",
+                false,
+                item.toStoredJson(),
+                PasteCollection(emptyList()).toStoredJson(),
+                0,
+                null,
+                item.size,
+                item.hash,
+                1,
+                null,
+                1,
+                false,
+            )
+            val id =
+                f.aDb.pasteDatabaseQueries
+                    .getLastId()
+                    .executeAsOne()
+            f.aDb.sharedClipboardDatabaseQueries.enqueueLoadedLocalCapture(id)
+            val members = ClipboardMembershipStore(f.aDb, SecureKeyPairSerializer())
+            ClipboardCaptureConsumer(
+                f.aDb,
+                "shared",
+                "a",
+                f.peers.aStore.secureKeyPair.signKeyPair.privateKey,
+                { members.signingKey("shared", it) },
+            ).drain()
+            val materializer = ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> })
+            val result = materializer.materialize("shared")
+            assertEquals(0, result.created)
+            assertEquals(1, result.reused)
+            assertEquals(id, rows(f).single().id)
+        }
+
+    @Test
+    fun `file metadata waits for bytes instead of publishing as downloaded`() =
+        runTest {
+            val f = historyFixture()
+            getJsonUtils()
+            val item =
+                createFilesPasteItem(
+                    relativePathList = listOf("b/1/42/file.txt"),
+                    fileInfoTreeMap = mapOf("file.txt" to SingleFileInfoTree(5, "file-hash")),
+                )
+            val payload =
+                CapturedClipboardPayload(
+                    "b",
+                    42,
+                    item.toStoredJson(),
+                    PasteCollection(emptyList()).toStoredJson(),
+                    3,
+                    null,
+                    item.size,
+                    item.hash,
+                    1,
+                )
+            val bytes = Json.encodeToString(payload).encodeToByteArray()
+            val hash =
+                "sha256:" +
+                    getCodecsUtils().base64Encode(
+                        CryptographyProvider.Default
+                            .get(SHA256)
+                            .hasher()
+                            .hash(bytes),
+                    )
+            journal(f.bDb, "b", f.peers.bStore).append(Json.encodeToString(listOf("capture/v1", "b", "42")), hash)
+            ClipboardHistoryPuller(f.client(true), f.a).pull("shared", "b")
+            f.a.storePayload("shared", hash, bytes)
+            val materializer =
+                ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> error("No file bytes yet") })
+            assertEquals(setOf(hash), materializer.materialize("shared").awaitingFilePayloads)
+            assertTrue(rows(f).isEmpty())
+        }
+
+    @Test
+    fun `separate original and edited captures remain separate native history records`() =
+        runTest {
+            val f = historyFixture()
+            val (first, one) = preparePayload(f, "original", 42)
+            val (second, two) = preparePayload(f, "edited", 43)
+            f.a.storePayload("shared", first, one)
+            f.a.storePayload("shared", second, two)
+            val materializer = ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> })
+            assertEquals(2, materializer.materialize("shared").created)
+            assertEquals(setOf("original", "edited"), rows(f).map { it.getPasteItem(PasteText::class)?.text }.toSet())
+        }
 
     @Test
     fun `multi chunk unicode metadata verifies before SQL commit and staging is cleaned`() =

@@ -116,12 +116,15 @@ class ClipboardJournal(
     }
 
     /** Unresolved ancestors remain pending. Concurrent heads, including deletions, are preserved. */
-    fun heads(entry: String): List<ClipboardChange> {
+    fun heads(entry: String): List<ClipboardChange> = allHeads().filter { it.entry == entry }
+
+    /** Resolve the whole frontier once when a history view spans many entries. */
+    fun allHeads(): List<ClipboardChange> {
         val resolved = mutableSetOf<ClipboardEventId>()
         snapshot.changes.forEach { change ->
             if (change.parents.all { it in resolved }) resolved.add(change.id)
         }
-        val candidates = snapshot.changes.filter { it.entry == entry && it.id in resolved }
+        val candidates = snapshot.changes.filter { it.id in resolved }
         val superseded = candidates.flatMap { it.parents }.toSet()
         return candidates.filter { it.id !in superseded }
     }

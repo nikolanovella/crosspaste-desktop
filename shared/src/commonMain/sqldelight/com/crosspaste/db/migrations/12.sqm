@@ -1,0 +1,10 @@
+CREATE TABLE SharedClipboardProjectionEntity (
+    clipboardId TEXT NOT NULL,
+    eventDevice TEXT NOT NULL,
+    eventSequence INTEGER NOT NULL,
+    entryId TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    needsRender INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (clipboardId, eventDevice, eventSequence)
+);

@@ -11,6 +11,46 @@ class ClipboardJournalTest {
     private fun replica(device: String) = ClipboardJournal(device, ClipboardJournalSnapshot("shared")) { }
 
     @Test
+    fun `whole history frontier includes deletions and omits unresolved revisions`() {
+        val a = replica("a")
+        val original = a.append("one", "original")
+        val other = a.append("two", "other")
+        val deleted = a.append("one", null, setOf(original.id), deleted = true)
+        val pending =
+            ClipboardChange(
+                ClipboardEventId("b", 1),
+                "shared",
+                "three",
+                100,
+                setOf(ClipboardEventId("missing", 1)),
+                "pending",
+                false,
+            )
+        a.ingest(listOf(pending))
+        assertEquals(setOf(other.id, deleted.id), a.allHeads().map { it.id }.toSet())
+        assertEquals(listOf(deleted), a.heads("one"))
+        assertTrue(a.heads("three").isEmpty())
+    }
+
+    @Test
+    fun `whole history frontier handles ten thousand independent entries together`() {
+        val changes =
+            (1L..10000L).map { sequence ->
+                ClipboardChange(
+                    ClipboardEventId("a", sequence),
+                    "shared",
+                    "entry-$sequence",
+                    sequence,
+                    emptySet(),
+                    "content-$sequence",
+                    false,
+                )
+            }
+        val journal = ClipboardJournal("b", ClipboardJournalSnapshot("shared", changes)) {}
+        assertEquals(changes, journal.allHeads())
+    }
+
+    @Test
     fun `offline edits reconcile through a third device without dropping concurrent versions`() {
         val a = replica("a")
         val b = replica("b")

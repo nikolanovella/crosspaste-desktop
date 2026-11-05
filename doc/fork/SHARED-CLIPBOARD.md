@@ -122,8 +122,8 @@ Tests cover two offline replicas with 137 records, bounded bidirectional catch-u
 restart, replay, holes in origin sequences, invalid cursors, disabled membership,
 and atomic rejection of a batch containing one bad signature. The encrypted HTTP
 invitation test also checks history denial before joining and successful catch-up
-after local consent. Clipboard-history materialization and the recurring runtime
-worker remain pending.
+after local consent. File/image materialization, the shared-history UI and the
+recurring runtime worker remain pending.
 
 `/clipboard/payload` transfers frozen capture metadata in bounded byte chunks,
 only when a verified signed event in that clipboard references the hash. The
@@ -133,6 +133,23 @@ and original capture identity before committing SQL, and removes staged bytes on
 success, interruption or rejection. Unicode spanning chunk boundaries is covered
 by byte-level assembly. This transfers captured metadata, including inline text;
 it does not yet transfer the image/file bytes referenced by that metadata.
+
+## Native history projection
+
+`ClipboardHistoryMaterializer` verifies the journal and frozen payload again before
+publishing inline content into the existing native history table. Migration 12
+adds an event-to-row mapping and durable pending-render flag. A reconnect reuses
+that mapping; matching local captures reuse their existing row. Creation, mapping
+and retention commit together. Rendering runs afterward and remains retryable if
+the renderer fails. Original and edited captures keep separate rows. This service
+does not touch the OS clipboard or relay received records as new local captures.
+
+The whole resolved frontier is computed in one pass instead of rescanning the
+journal for each entry. This removes that quadratic scan; it does not establish
+large signed-history performance for the remaining snapshot-based services.
+File/image metadata remains pending until its bytes can be materialized. The
+shared-history UI, cache/deletion policy and recurring runtime still need wiring;
+the service is registered but is not activated in the installed app.
 
 ## Required before live use
 

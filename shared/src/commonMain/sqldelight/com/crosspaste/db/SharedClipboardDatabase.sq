@@ -64,6 +64,18 @@ CREATE TABLE SharedClipboardMemberEntity (
     PRIMARY KEY (clipboardId, deviceId)
 );
 
+-- A stable event-to-history mapping prevents reconnects from duplicating UI rows.
+CREATE TABLE SharedClipboardProjectionEntity (
+    clipboardId TEXT NOT NULL,
+    eventDevice TEXT NOT NULL,
+    eventSequence INTEGER NOT NULL,
+    entryId TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    needsRender INTEGER AS Boolean NOT NULL DEFAULT 1,
+    PRIMARY KEY (clipboardId, eventDevice, eventSequence)
+);
+
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
 VALUES (?, ?, ?);
@@ -120,3 +132,19 @@ SELECT * FROM SharedClipboardMemberEntity WHERE clipboardId = ? ORDER BY deviceI
 
 insertMember:
 INSERT INTO SharedClipboardMemberEntity VALUES (?, ?, ?);
+
+getProjection:
+SELECT * FROM SharedClipboardProjectionEntity WHERE clipboardId = ? AND eventDevice = ? AND eventSequence = ?;
+
+insertProjection:
+INSERT INTO SharedClipboardProjectionEntity VALUES (?, ?, ?, ?, ?, ?, 1);
+
+getPendingProjectionRendering:
+SELECT * FROM SharedClipboardProjectionEntity WHERE clipboardId = ? AND needsRender = 1 LIMIT ?;
+
+completeProjectionRendering:
+UPDATE SharedClipboardProjectionEntity SET needsRender = 0
+WHERE clipboardId = ? AND eventDevice = ? AND eventSequence = ?;
+
+retainPaste:
+INSERT OR IGNORE INTO SharedClipboardRetentionEntity(clipboardId, localPasteId) VALUES (?, ?);

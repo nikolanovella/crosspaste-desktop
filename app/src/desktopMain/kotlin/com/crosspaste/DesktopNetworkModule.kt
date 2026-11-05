@@ -62,6 +62,9 @@ import com.crosspaste.pairing.v3.PairingVersionCoordinator
 import com.crosspaste.pairing.v3.PakeProvider
 import com.crosspaste.pairing.v3.Spake2PakeProvider
 import com.crosspaste.pairing.v3.UnavailablePakeProvider
+import com.crosspaste.paste.PasteType
+import com.crosspaste.paste.SearchContentService
+import com.crosspaste.paste.item.PasteItemReader
 import com.crosspaste.path.AppPathProvider
 import com.crosspaste.platform.Platform
 import com.crosspaste.sync.FilePushService
@@ -78,6 +81,7 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.sync.journal.ClipboardHistoryMaterializer
 import com.crosspaste.sync.journal.ClipboardHistoryPuller
 import com.crosspaste.sync.journal.ClipboardHistoryService
 import com.crosspaste.sync.journal.ClipboardInvitationSender
@@ -87,6 +91,7 @@ import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
 import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
+import com.crosspaste.task.TaskSubmitter
 import com.crosspaste.transport.bluetooth.BluetoothTransportController
 import com.crosspaste.ui.devices.DefaultPairingV3UiController
 import com.crosspaste.ui.devices.PairingV3UiController
@@ -124,6 +129,20 @@ fun desktopNetworkModule(
         single { ClipboardInvitationSender(get(), get()) }
         single { ClipboardHistoryService(get(), get<AppInfo>().appInstanceId, get(), get()) }
         single { ClipboardHistoryPuller(get(), get()) }
+        single {
+            val reader = get<PasteItemReader>()
+            val search = get<SearchContentService>()
+            val tasks = get<TaskSubmitter>()
+            ClipboardHistoryMaterializer(
+                get(),
+                get(),
+                get<AppInfo>().appInstanceId,
+                searchContent = { paste ->
+                    search.createSearchContent(paste.source, paste.pasteAppearItem?.let { reader.getSearchContent(it) })
+                },
+                render = { id, type -> tasks.submit { addRenderingTask(id, PasteType.fromType(type)) } },
+            )
+        }
         single { ClipboardPayloadTransfer(get()) }
         single {
             DesktopClipboardPayloadReceiver(
