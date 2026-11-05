@@ -68,6 +68,7 @@ import com.crosspaste.sync.PastePullCursorManager
 import com.crosspaste.sync.PastePullService
 import com.crosspaste.sync.PastePullTrigger
 import com.crosspaste.sync.journal.ClipboardNativeIdentityStore
+import com.crosspaste.sync.journal.DesktopClipboardFileConvergence
 import com.crosspaste.sync.journal.DesktopClipboardRecordingPolicy
 import com.crosspaste.task.CleanPasteTaskExecutor
 import com.crosspaste.task.CleanTaskTaskExecutor
@@ -200,8 +201,6 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
         single<PasteReleaseService> {
             val identities = get<ClipboardNativeIdentityStore>()
             val dao = get<PasteDao>()
-            val search = get<SearchContentService>()
-            val reader = get<PasteItemReader>()
             val device = get<AppInfo>().appInstanceId
             PasteReleaseService(
                 commonConfigManager = get(),
@@ -244,18 +243,13 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
                 userDataPathProvider = get(),
                 refreshSharedRecordingPolicy = get<DesktopClipboardRecordingPolicy>()::refresh,
                 createRemoteInline = { paste ->
-                    identities.receiveInline(
-                        paste,
-                        { value ->
-                            search.createSearchContent(
-                                value.source,
-                                value.pasteAppearItem?.let { reader.getSearchContent(it) },
-                            )
-                        },
-                        { dao.createPasteData(paste, com.crosspaste.paste.PasteState.LOADED) },
-                    )
+                    get<DesktopClipboardFileConvergence>().receiveInline(paste) {
+                        dao.createPasteData(paste, com.crosspaste.paste.PasteState.LOADED)
+                    }
                 },
                 decorateOutgoing = { identities.outgoing(it, device) },
+                rememberIncomingFile = identities::rememberFile,
+                convergeCompletedFile = { get<DesktopClipboardFileConvergence>().complete(it) },
             )
         }
         single<PasteSyncProcessManager<Long>> { DefaultPasteSyncProcessManager() }

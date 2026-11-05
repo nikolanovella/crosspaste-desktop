@@ -36,6 +36,7 @@ class PushClientApi(
     private val pasteClient: PasteClient,
     private val configManager: CommonConfigManager,
     private val exceptionHandler: ExceptionHandler,
+    private val decorateOutgoing: suspend (PasteData) -> PasteData = { it },
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -48,7 +49,7 @@ class PushClientApi(
     ): ClientApiResult =
         request(logger, exceptionHandler, request = {
             pasteClient.post(
-                message = pasteData,
+                message = decorateOutgoing(pasteData),
                 messageType = typeInfo<PasteData>(),
                 headersBuilder = {
                     append("targetAppInstanceId", targetAppInstanceId)

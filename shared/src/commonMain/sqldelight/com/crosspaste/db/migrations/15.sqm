@@ -1,0 +1,13 @@
+ALTER TABLE SharedClipboardNativeIdentityEntity ADD COLUMN identityVersion INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE SharedClipboardNativeIdentityEntity ADD COLUMN nativeSnapshot TEXT;
+
+CREATE TABLE SharedClipboardFileReceiptEntity (
+    localPasteId INTEGER PRIMARY KEY NOT NULL,
+    identity TEXT NOT NULL
+);
+
+CREATE INDEX SharedClipboardEventCapture ON SharedClipboardEventEntity(clipboardId, originDevice, entryId);
+
+CREATE TRIGGER SharedClipboardFileReceiptDelete AFTER DELETE ON PasteDataEntity BEGIN
+    DELETE FROM SharedClipboardFileReceiptEntity WHERE localPasteId = old.id;
+END;

@@ -26,6 +26,7 @@ class ClipboardNativeIdentityStore(
     internal data class Prepared(
         val identity: ClipboardCaptureIdentity,
         val canonical: String,
+        val nativeSnapshot: String? = null,
     )
 
     data class Received(
@@ -38,7 +39,7 @@ class ClipboardNativeIdentityStore(
     private val digestPattern = Regex("sha256:[A-Za-z0-9+/]{43}=")
 
     private fun valid(identity: ClipboardCaptureIdentity): Boolean =
-        identity.version == 1 &&
+        identity.version in 1..2 &&
             identity.originDevice.isNotBlank() &&
             identity.originDevice.length <= 256 &&
             identity.originPasteId > 0 &&
@@ -52,10 +53,18 @@ class ClipboardNativeIdentityStore(
             else -> value
         }
 
-    private fun canonical(paste: PasteData): String? {
-        val items = paste.getPasteAppearItems()
-        // File identity must account for rebinding/renaming and byte availability separately.
-        if (items.isEmpty() || items.any { it is PasteFiles } || !paste.hasValidContent()) return null
+    private fun hasFiles(paste: PasteData): Boolean = paste.getPasteAppearItems().any { it is PasteFiles }
+
+    private fun canonical(
+        paste: PasteData,
+        logicalFiles: Boolean = true,
+    ): String? {
+        if (paste.pasteAppearItem == null || !paste.hasValidContent()) return null
+        if (logicalFiles &&
+            hasFiles(paste)
+        ) {
+            return ClipboardFileIdentityLayout.descriptor(paste)?.let { ordered(it).toString() }
+        }
         return ordered(
             JsonObject(
                 mapOf(
@@ -80,10 +89,13 @@ class ClipboardNativeIdentityStore(
                     .hash(bytes),
             )
 
-    private suspend fun contentHash(canonical: String): String =
+    private suspend fun contentHash(
+        canonical: String,
+        version: Int = 1,
+    ): String =
         hash(
             (
-                "CrossPaste/native-capture/content/v1\n" +
+                "CrossPaste/native-capture/content/v$version\n" +
                     canonical
             ).encodeToByteArray(),
         )
@@ -92,8 +104,19 @@ class ClipboardNativeIdentityStore(
         val identity = paste.captureIdentity ?: return null
         if (!valid(identity)) return null
         val canonical = canonical(paste) ?: return null
-        if (contentHash(canonical) != identity.contentHash) return null
-        return Prepared(identity, canonical)
+        if ((identity.version == 2) != hasFiles(paste)) return null
+        if (contentHash(canonical, identity.version) != identity.contentHash) return null
+        return Prepared(
+            identity,
+            canonical,
+            if (identity.version ==
+                2
+            ) {
+                canonical(paste, logicalFiles = false)
+            } else {
+                null
+            },
+        )
     }
 
     internal suspend fun verified(
@@ -101,9 +124,17 @@ class ClipboardNativeIdentityStore(
         metadataHash: String,
     ): Prepared? {
         val canonical = canonical(paste) ?: return null
-        val identity = ClipboardCaptureIdentity(paste.appInstanceId, paste.id, metadataHash, contentHash(canonical))
+        val version = if (hasFiles(paste)) 2 else 1
+        val identity =
+            ClipboardCaptureIdentity(
+                paste.appInstanceId,
+                paste.id,
+                metadataHash,
+                contentHash(canonical, version),
+                version,
+            )
         require(valid(identity))
-        return Prepared(identity, canonical)
+        return Prepared(identity, canonical, if (version == 2) canonical(paste, logicalFiles = false) else null)
     }
 
     internal suspend fun captured(
@@ -128,8 +159,12 @@ class ClipboardNativeIdentityStore(
         )
 
     /** Must run in the transaction that selects/creates the native history row. */
-    internal fun resolve(prepared: Prepared): PasteData? {
+    internal fun resolve(
+        prepared: Prepared,
+        verifiedFilePublication: Boolean = false,
+    ): PasteData? {
         val identity = prepared.identity
+        if (identity.version == 2 && !verifiedFilePublication) return null
         val alias =
             queries
                 .getNativeIdentity(
@@ -138,14 +173,22 @@ class ClipboardNativeIdentityStore(
                     identity.metadataHash,
                 ).executeAsOneOrNull()
                 ?: return null
-        if (alias.contentHash != identity.contentHash) return null
+        if (alias.contentHash != identity.contentHash || alias.identityVersion != identity.version.toLong()) return null
         return database.pasteDatabaseQueries
             .getPasteData(
                 alias.localPasteId,
                 listOf(PasteState.LOADED.toLong()),
                 PasteData::mapper,
             ).executeAsOneOrNull()
-            ?.takeIf { canonical(it) == prepared.canonical }
+            ?.takeIf {
+                if (identity.version ==
+                    2
+                ) {
+                    alias.nativeSnapshot != null && canonical(it, logicalFiles = false) == alias.nativeSnapshot
+                } else {
+                    canonical(it) == prepared.canonical
+                }
+            }
     }
 
     /** Signed publication can replace an unverified conflicting hint, never another verified payload. */
@@ -153,6 +196,7 @@ class ClipboardNativeIdentityStore(
         prepared: Prepared,
         localId: Long,
         authorVerified: Boolean,
+        native: PasteData? = null,
     ) {
         val identity = prepared.identity
         val previous =
@@ -166,7 +210,14 @@ class ClipboardNativeIdentityStore(
             if (!authorVerified) return
             require(previous.authorVerified == 0L) { "Conflicting verified capture identity" }
         }
+        if (!authorVerified && identity.version == 2 && previous?.authorVerified == 1L) return
         val verified = authorVerified || previous?.authorVerified == 1L && previous.contentHash == identity.contentHash
+        val snapshot =
+            if (identity.version == 2) {
+                requireNotNull(if (native == null) prepared.nativeSnapshot else canonical(native, logicalFiles = false))
+            } else {
+                null
+            }
         queries.putNativeIdentity(
             identity.originDevice,
             identity.originPasteId,
@@ -174,6 +225,8 @@ class ClipboardNativeIdentityStore(
             identity.contentHash,
             localId,
             if (verified) 1 else 0,
+            identity.version.toLong(),
+            snapshot,
         )
     }
 
@@ -186,15 +239,19 @@ class ClipboardNativeIdentityStore(
             val pendingCaptures = queries.getCapturesForPaste(paste.id).executeAsList()
             if (aliases.isEmpty() && pendingCaptures.isEmpty()) return@withContext paste.copy(captureIdentity = null)
             val canonical = canonical(paste) ?: return@withContext paste.copy(captureIdentity = null)
-            val fingerprint = contentHash(canonical)
+            val fileSnapshot = if (hasFiles(paste)) canonical(paste, logicalFiles = false) else null
+            val fingerprint = if (fileSnapshot == null) contentHash(canonical) else null
             for (alias in aliases) {
-                if (alias.contentHash == fingerprint) {
+                if ((alias.identityVersion == 1L && alias.contentHash == fingerprint) ||
+                    (alias.identityVersion == 2L && fileSnapshot != null && alias.nativeSnapshot == fileSnapshot)
+                ) {
                     val identity =
                         ClipboardCaptureIdentity(
                             alias.originDevice,
                             alias.originPasteId,
                             alias.metadataHash,
                             alias.contentHash,
+                            alias.identityVersion.toInt(),
                         )
                     if (valid(identity)) return@withContext paste.copy(captureIdentity = identity)
                 }
@@ -204,24 +261,149 @@ class ClipboardNativeIdentityStore(
                 if (pending.originDevice != localDevice) continue
                 val capture = CapturedClipboardPayload.from(pending)
                 val prepared = captured(capture, hash(Json.encodeToString(capture).encodeToByteArray())) ?: continue
-                if (prepared.canonical != canonical) continue
+                if (prepared.canonical != canonical || prepared.nativeSnapshot != fileSnapshot) continue
                 database.transaction { record(prepared, paste.id, false) }
                 return@withContext paste.copy(captureIdentity = prepared.identity)
             }
             return@withContext paste.copy(captureIdentity = null)
         }
 
-    suspend fun receiveInline(
+    /** Retain an untrusted hint through path binding/chunk transfer, not as a ready alias. */
+    suspend fun rememberFile(
+        paste: PasteData,
+        localId: Long,
+    ) = withContext(ioDispatcher) {
+        val prepared = prepare(paste) ?: return@withContext
+        if (prepared.identity.version == 2) queries.putFileReceipt(localId, Json.encodeToString(prepared.identity))
+    }
+
+    /** Called only with a byte-verified private landing, while the native row is locked by SQL. */
+    internal fun adoptVerifiedFile(
+        candidate: PasteData,
+        landed: PasteData,
+        search: (PasteData) -> String?,
+    ): PasteData {
+        require(hasFiles(candidate) && hasFiles(landed) && candidate.pasteState == PasteState.LOADED)
+        val adopted =
+            candidate.copy(
+                pasteAppearItem = landed.pasteAppearItem,
+                pasteCollection = landed.pasteCollection,
+                pasteType = landed.pasteType,
+                size = landed.size,
+                hash = landed.hash,
+                captureIdentity = null,
+            )
+        database.pasteDatabaseQueries.adoptSharedFileRepresentation(
+            adopted.pasteAppearItem?.toStoredJson(),
+            adopted.pasteCollection.toStoredJson(),
+            adopted.pasteType.toLong(),
+            adopted.size,
+            adopted.hash,
+            search(adopted),
+            adopted.id,
+        )
+        return adopted
+    }
+
+    /** A finished legacy transfer can become an alias; reuse of another row needs verified bytes. */
+    internal suspend fun completeFile(
+        paste: PasteData,
+        verifiedLanding: suspend (ClipboardCaptureIdentity, String) -> VerifiedFileLanding?,
+        search: (PasteData) -> String?,
+    ): PasteData? =
+        withContext(ioDispatcher) {
+            val receipt = queries.getFileReceipt(paste.id).executeAsOneOrNull() ?: return@withContext paste
+            val identity = Json.decodeFromString<ClipboardCaptureIdentity>(receipt)
+            val prepared = prepare(paste.copy(captureIdentity = identity))
+            if (prepared == null || identity.version != 2) {
+                queries.deleteFileReceipt(paste.id)
+                return@withContext paste
+            }
+            val previous =
+                queries
+                    .getNativeIdentity(
+                        identity.originDevice,
+                        identity.originPasteId,
+                        identity.metadataHash,
+                    ).executeAsOneOrNull()
+            val landing = if (previous?.authorVerified == 1L) verifiedLanding(identity, paste.appInstanceId) else null
+            database.transactionWithResult<PasteData?> {
+                val landed = landing?.activePaste(identity, paste.appInstanceId)
+                val current =
+                    database.pasteDatabaseQueries
+                        .getPasteData(
+                            paste.id,
+                            listOf(PasteState.LOADED.toLong()),
+                            PasteData::mapper,
+                        ).executeAsOneOrNull() ?: return@transactionWithResult null
+                if (canonical(current, logicalFiles = false) != prepared.nativeSnapshot) {
+                    queries.deleteFileReceipt(paste.id)
+                    return@transactionWithResult current
+                }
+                val effective =
+                    if (landed != null) {
+                        val candidate = resolve(prepared, verifiedFilePublication = true) ?: current
+                        val adopted = adoptVerifiedFile(candidate, landed, search)
+                        record(prepared, adopted.id, true, adopted)
+                        if (adopted.id != current.id) {
+                            // Transfer completed into its own paths. Retire only the duplicate row;
+                            // never delete or overwrite the legacy destination here.
+                            database.pasteDatabaseQueries.markDeletePasteData(listOf(current.id))
+                        }
+                        adopted
+                    } else {
+                        record(prepared, current.id, false, current)
+                        current
+                    }
+                queries.deleteFileReceipt(paste.id)
+                effective
+            }
+        }
+
+    internal suspend fun receiveInline(
         paste: PasteData,
         search: (PasteData) -> String?,
         fallback: suspend () -> Long,
+        verifiedFileLanding: suspend (ClipboardCaptureIdentity, String) -> VerifiedFileLanding? = { _, _ -> null },
     ): Received =
         withContext(ioDispatcher) {
+            if (paste.isFileType()) return@withContext Received(fallback(), true)
             val prepared = prepare(paste) ?: return@withContext Received(fallback(), true)
+            val identity = prepared.identity
+            val previous =
+                if (identity.version ==
+                    2
+                ) {
+                    queries
+                        .getNativeIdentity(
+                            identity.originDevice,
+                            identity.originPasteId,
+                            identity.metadataHash,
+                        ).executeAsOneOrNull()
+                } else {
+                    null
+                }
+            val landing =
+                if (previous?.authorVerified ==
+                    1L
+                ) {
+                    verifiedFileLanding(identity, paste.appInstanceId)
+                } else {
+                    null
+                }
             database.transactionWithResult {
-                val existing = resolve(prepared)
+                val landed = landing?.activePaste(identity, paste.appInstanceId)
+                val existing = resolve(prepared, verifiedFilePublication = landed != null)
                 if (existing != null) {
-                    Received(existing.id, false, existing)
+                    val effective =
+                        if (landed == null) {
+                            existing
+                        } else {
+                            adoptVerifiedFile(existing, landed, search).also {
+                                record(prepared, it.id, true, it)
+                            }
+                        }
+                    Received(effective.id, false, effective)
                 } else {
                     database.pasteDatabaseQueries.createPasteDataEntity(
                         paste.appInstanceId,
@@ -243,4 +425,28 @@ class ClipboardNativeIdentityStore(
                 }
             }
         }
+
+    internal data class VerifiedFileLanding(
+        val clipboard: String,
+        val event: ClipboardEventId,
+        val paste: PasteData,
+    )
+
+    private fun VerifiedFileLanding.activePaste(
+        identity: ClipboardCaptureIdentity,
+        peer: String,
+    ): PasteData? {
+        if (queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled != true ||
+            queries.getMember(clipboard, peer).executeAsOneOrNull() == null
+        ) {
+            return null
+        }
+        val latest = SqlSignedClipboardStore(database, clipboard).load()
+        val snapshot = ClipboardJournalSnapshot(clipboard, latest.changes.map { it.change })
+        val active =
+            ClipboardJournal(peer, snapshot) {}.allHeads().any {
+                it.id == event && !it.deleted && it.contentHash == identity.metadataHash
+            }
+        return paste.takeIf { active }
+    }
 }

@@ -101,6 +101,7 @@ import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
 import com.crosspaste.sync.journal.ClipboardSetupController
 import com.crosspaste.sync.journal.DesktopClipboardBlobStore
+import com.crosspaste.sync.journal.DesktopClipboardFileConvergence
 import com.crosspaste.sync.journal.DesktopClipboardFileLanding
 import com.crosspaste.sync.journal.DesktopClipboardFileManifestStore
 import com.crosspaste.sync.journal.DesktopClipboardFileReceiver
@@ -243,6 +244,13 @@ fun desktopNetworkModule(
                 render = { id, type -> tasks.submit { addRenderingTask(id, PasteType.fromType(type)) } },
                 fileLanding = landing::land,
             )
+        }
+        single {
+            val reader = get<PasteItemReader>()
+            val search = get<SearchContentService>()
+            DesktopClipboardFileConvergence(get(), get(), get(), get(), get<AppInfo>().appInstanceId) { paste ->
+                search.createSearchContent(paste.source, paste.pasteAppearItem?.let { reader.getSearchContent(it) })
+            }
         }
         single { ClipboardPayloadTransfer(get()) }
         single { ClipboardFileTransfer(get(), get()) }
@@ -401,7 +409,11 @@ fun desktopNetworkModule(
             PasteClientApi(get(), get(), decorateOutgoing = { identities.outgoing(it, device) })
         }
         single<PullClientApi> { PullClientApi(get(), get(), get()) }
-        single<PushClientApi> { PushClientApi(get(), get(), get()) }
+        single<PushClientApi> {
+            val identities = get<ClipboardNativeIdentityStore>()
+            val device = get<AppInfo>().appInstanceId
+            PushClientApi(get(), get(), get(), decorateOutgoing = { identities.outgoing(it, device) })
+        }
         single<ResourcesClient> { DesktopResourcesClient(get(), get()) }
         single<SyncClientApi> { SyncClientApi(get(), get(), get(), get(), get()) }
         // endregion

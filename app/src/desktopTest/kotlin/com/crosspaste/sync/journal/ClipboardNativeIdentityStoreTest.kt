@@ -399,7 +399,7 @@ class ClipboardNativeIdentityStoreTest {
             insert(db, textPaste("saved history"))
             driver.execute(null, "DROP TABLE SharedClipboardNativeIdentityEntity", 0)
             driver.execute(null, "DROP INDEX SharedClipboardCapturePaste", 0)
-            assertEquals(15L, Database.Schema.version)
+            assertEquals(16L, Database.Schema.version)
             Database.Schema.migrate(driver, 14, 15)
             val plan =
                 driver

@@ -122,6 +122,7 @@ class ClipboardHistoryMaterializer(
                         remote = capture.originDevice != localDevice,
                     )
                 require(paste.hasValidContent()) { "Stored clipboard content is invalid" }
+                val identity = identities.verified(paste, hash)
                 if (paste.getPasteAppearItems().any { it is PasteFiles }) {
                     val signed = snapshot.changes.single { it.change.id == change.id }
                     val landed = fileLanding(signed, bytes, paste)
@@ -132,7 +133,7 @@ class ClipboardHistoryMaterializer(
                     require(landed.hasValidContent())
                     paste = landed
                 }
-                prepared.add(Prepared(change, payload, paste, identities.verified(paste, hash)))
+                prepared.add(Prepared(change, payload, paste, identity))
             }
             val created =
                 database.transactionWithResult {
@@ -175,10 +176,15 @@ class ClipboardHistoryMaterializer(
                             } else {
                                 null
                             }
-                        val aliased = item.identity?.let(identities::resolve)
+                        val aliased = item.identity?.let { identities.resolve(it, verifiedFilePublication = true) }
                         val localId =
                             if (aliased != null) {
                                 reused++
+                                if (item.identity?.identity?.version ==
+                                    2
+                                ) {
+                                    identities.adoptVerifiedFile(aliased, paste, searchContent)
+                                }
                                 aliased.id
                             } else if (original != null &&
                                 original.hash == paste.hash &&
@@ -209,7 +215,7 @@ class ClipboardHistoryMaterializer(
                                 count++
                                 database.pasteDatabaseQueries.getLastId().executeAsOne()
                             }
-                        item.identity?.let { identities.record(it, localId, true) }
+                        item.identity?.let { identities.record(it, localId, true, paste) }
                         queries.insertProjection(
                             clipboard,
                             change.id.device,

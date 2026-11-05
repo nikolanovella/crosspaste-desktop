@@ -89,6 +89,8 @@ class PasteReleaseService(
     private val refreshSharedRecordingPolicy: () -> Unit = {},
     private val createRemoteInline: (suspend (PasteData) -> ClipboardNativeIdentityStore.Received)? = null,
     private val decorateOutgoing: suspend (PasteData) -> PasteData = { it },
+    private val rememberIncomingFile: suspend (PasteData, Long) -> Unit = { _, _ -> },
+    private val convergeCompletedFile: (suspend (PasteData) -> PasteData?)? = null,
 ) {
 
     suspend fun outgoingPaste(paste: PasteData): PasteData = decorateOutgoing(paste)
@@ -532,6 +534,7 @@ class PasteReleaseService(
                 )
 
             pasteDao.updateFilePath(newPasteData)
+            rememberIncomingFile(pasteData, id)
             newPasteData
         } catch (e: Exception) {
             pasteDao.markDeleteFailedReceive(id)
@@ -769,9 +772,17 @@ class PasteReleaseService(
                                 storedPasteData.copy(pasteState = PasteState.LOADED)
                             }
                     pastePullCursorManager.settleFile(pasteData.appInstanceId, id)
-                    markDeleteSameHash(id, pasteData.pasteType, pasteData.hash)
-                    if (!historyPull) addRelaySyncTask(id, pasteData.appInstanceId, seenAppInstanceIds)
-                    tryWritePasteboard(pasteData)
+                    val effective =
+                        if (convergeCompletedFile ==
+                            null
+                        ) {
+                            pasteData
+                        } else {
+                            convergeCompletedFile.invoke(pasteData) ?: return@submit
+                        }
+                    markDeleteSameHash(effective.id, effective.pasteType, effective.hash)
+                    if (!historyPull) addRelaySyncTask(effective.id, pasteData.appInstanceId, seenAppInstanceIds)
+                    tryWritePasteboard(effective)
                 }
             }.onFailure { e ->
                 logger.error(e) { "Release remote paste data with file failed" }

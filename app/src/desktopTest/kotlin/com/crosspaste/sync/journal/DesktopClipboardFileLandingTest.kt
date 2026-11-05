@@ -44,6 +44,77 @@ internal fun capturedLandingPaste(f: ManifestFixture): PasteData {
 @IntegrationTest
 class DesktopClipboardFileLandingTest {
     @Test
+    fun `completed legacy transfer reuses verified history only while private bytes match`() =
+        runTest {
+            for (corrupt in listOf(false, true)) {
+                val f = fileReceiverFixture()
+                try {
+                    f.receive()
+                    val landing =
+                        DesktopClipboardFileLanding(
+                            f.root.resolve("landings"),
+                            f.receivedManifests,
+                            f.capture.verifier,
+                            f.receivedBlobs,
+                        )
+                    val db = f.localDatabase
+                    val materializer =
+                        ClipboardHistoryMaterializer(
+                            db,
+                            f.receivingHistory,
+                            "b",
+                            { null },
+                            { _, _ -> },
+                            landing::land,
+                        )
+                    assertEquals(1, materializer.materialize("shared").created)
+                    val queries = db.pasteDatabaseQueries
+                    val sharedId =
+                        db.sharedClipboardDatabaseQueries
+                            .getProjection("shared", "a", 1)
+                            .executeAsOne()
+                            .localPasteId
+                    val states = listOf(PasteState.LOADED.toLong())
+                    val shared = queries.getPasteData(sharedId, states, PasteData::mapper).executeAsOne()
+                    if (corrupt) {
+                        val files = shared.pasteAppearItem as PasteFiles
+                        val root = assertNotNull(files.resolveBasePath()).toNioPath()
+                        Files.writeString(root.resolve(files.relativePathList.single()).resolve("café.txt"), "HELLO")
+                    }
+                    val original = capturedLandingPaste(f.capture)
+                    val identities = ClipboardNativeIdentityStore(db)
+                    val marker = assertNotNull(identities.verified(original, f.capture.manifest.metadataHash)).identity
+                    queries.createPasteDataEntity(
+                        original.appInstanceId,
+                        false,
+                        original.pasteAppearItem?.toStoredJson(),
+                        original.pasteCollection.toStoredJson(),
+                        original.pasteType.toLong(),
+                        original.source,
+                        original.size,
+                        original.hash,
+                        original.createTime,
+                        null,
+                        PasteState.LOADED.toLong(),
+                        true,
+                    )
+                    val legacyId = queries.getLastId().executeAsOne()
+                    val legacy = original.copy(id = legacyId, captureIdentity = marker)
+                    identities.rememberFile(legacy, legacyId)
+                    val bridge =
+                        DesktopClipboardFileConvergence(db, f.receivingHistory, identities, landing, "b") { null }
+                    assertEquals(if (corrupt) legacyId else sharedId, assertNotNull(bridge.complete(legacy)).id)
+                    assertEquals(
+                        corrupt,
+                        queries.getPasteData(legacyId, states, PasteData::mapper).executeAsOneOrNull() != null,
+                    )
+                } finally {
+                    f.cleanup()
+                }
+            }
+        }
+
+    @Test
     fun `zero byte files and directory only roots survive signed transfer and native publication`() =
         runTest {
             for (directoryOnlyCapture in listOf(false, true)) {

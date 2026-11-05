@@ -463,3 +463,10 @@ SELECT remotePasteId FROM PasteRemoteCursorEntity WHERE appInstanceId = ?;
 
 getPendingReceivesByLocalIds:
 SELECT appInstanceId, remotePasteId FROM PastePendingReceiveEntity WHERE localPasteId IN ?;
+
+-- Use an already verified private landing without replacing native identity/favorites/tags.
+adoptSharedFileRepresentation:
+UPDATE PasteDataEntity
+SET pasteAppearItem = :pasteAppearItem, pasteCollection = :pasteCollection,
+    pasteType = :pasteType, size = :size, hash = :hash, pasteSearchContent = :pasteSearchContent
+WHERE id = :id AND pasteState = 1;

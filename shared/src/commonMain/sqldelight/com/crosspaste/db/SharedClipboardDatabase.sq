@@ -90,12 +90,25 @@ CREATE TABLE SharedClipboardNativeIdentityEntity (
     contentHash TEXT NOT NULL,
     localPasteId INTEGER NOT NULL,
     authorVerified INTEGER NOT NULL DEFAULT 0,
+    identityVersion INTEGER NOT NULL DEFAULT 1,
+    nativeSnapshot TEXT,
     PRIMARY KEY (originDevice, originPasteId, metadataHash)
 );
 
 CREATE INDEX SharedClipboardNativeIdentityPaste ON SharedClipboardNativeIdentityEntity(localPasteId);
 
 CREATE INDEX SharedClipboardCapturePaste ON SharedClipboardCaptureEntity(localPasteId);
+
+CREATE TABLE SharedClipboardFileReceiptEntity (
+    localPasteId INTEGER PRIMARY KEY NOT NULL,
+    identity TEXT NOT NULL
+);
+
+CREATE INDEX SharedClipboardEventCapture ON SharedClipboardEventEntity(clipboardId, originDevice, entryId);
+
+CREATE TRIGGER SharedClipboardFileReceiptDelete AFTER DELETE ON PasteDataEntity BEGIN
+    DELETE FROM SharedClipboardFileReceiptEntity WHERE localPasteId = old.id;
+END;
 
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
@@ -196,7 +209,20 @@ getNativeIdentitiesForPaste:
 SELECT * FROM SharedClipboardNativeIdentityEntity WHERE localPasteId = ? ORDER BY authorVerified DESC;
 
 putNativeIdentity:
-INSERT OR REPLACE INTO SharedClipboardNativeIdentityEntity VALUES (?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO SharedClipboardNativeIdentityEntity VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 getCapturesForPaste:
 SELECT * FROM SharedClipboardCaptureEntity WHERE localPasteId = ?;
+
+putFileReceipt:
+INSERT OR REPLACE INTO SharedClipboardFileReceiptEntity VALUES (?, ?);
+
+getFileReceipt:
+SELECT identity FROM SharedClipboardFileReceiptEntity WHERE localPasteId = ?;
+
+deleteFileReceipt:
+DELETE FROM SharedClipboardFileReceiptEntity WHERE localPasteId = ?;
+
+getCaptureEventSequences:
+SELECT originSequence FROM SharedClipboardEventEntity WHERE clipboardId = ? AND originDevice = ? AND entryId = ?
+ORDER BY originSequence DESC;
