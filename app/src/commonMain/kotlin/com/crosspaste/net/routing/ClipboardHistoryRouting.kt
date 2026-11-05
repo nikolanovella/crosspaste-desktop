@@ -21,6 +21,39 @@ fun Routing.clipboardHistoryRouting(
     authentication: ClipboardPeerAuthentication,
     history: ClipboardHistoryService,
 ) {
+    post("/clipboard/payload") {
+        val peer = call.request.headers[HEADER_APP_INSTANCE_ID]
+        if (peer.isNullOrBlank() ||
+            peer.length > 256 ||
+            call.request.headers["secure"] != "1" ||
+            call.request.headers[HEADER_TARGET_APP_INSTANCE_ID] != localDevice
+        ) {
+            call.respond(HttpStatusCode.Unauthorized)
+            return@post
+        }
+        val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+        if (length != null && length !in 1..16384) {
+            call.respond(HttpStatusCode.PayloadTooLarge)
+            return@post
+        }
+        try {
+            val verified =
+                authentication.verify(
+                    peer,
+                    call.receive<ClipboardPeerProof>(),
+                    ClipboardPeerOperation.PAYLOAD,
+                )
+            if (verified == null) {
+                call.respond(HttpStatusCode.Unauthorized)
+                return@post
+            }
+            call.respond(authentication.reply(verified, Json.encodeToString(history.payload(verified))))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            call.respond(HttpStatusCode.Unauthorized)
+        }
+    }
     post("/clipboard/history") {
         val peer = call.request.headers[HEADER_APP_INSTANCE_ID]
         if (peer.isNullOrBlank() ||

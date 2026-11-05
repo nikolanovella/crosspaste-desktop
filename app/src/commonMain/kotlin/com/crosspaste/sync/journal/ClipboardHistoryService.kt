@@ -3,9 +3,13 @@ package com.crosspaste.sync.journal
 import com.crosspaste.Database
 import com.crosspaste.secure.SecureKeyPairSerializer
 import com.crosspaste.secure.SecureStore
+import com.crosspaste.utils.getCodecsUtils
+import dev.whyoleg.cryptography.CryptographyProvider
+import dev.whyoleg.cryptography.algorithms.SHA256
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
@@ -49,6 +53,78 @@ class ClipboardHistoryService(
         }
 
     suspend fun cursor(clipboard: String): Map<String, Long> = mutex.withLock { open(clipboard).cursor() }
+
+    suspend fun payload(verified: VerifiedClipboardPeerRequest): ClipboardPayloadChunk =
+        mutex.withLock {
+            val request = verified.request
+            require(request.operation == ClipboardPeerOperation.PAYLOAD && request.target == localDevice)
+            requireMember(request.clipboard, request.sender)
+            val query = Json.decodeFromString<ClipboardPayloadRequest>(request.payload)
+            require(query.hash.startsWith("sha256:") && query.hash.length == 51)
+            require(query.offset >= 0 && query.limit in 1..262144)
+            open(request.clipboard) // Authenticate stored original authors before using their references.
+            require(
+                SqlSignedClipboardStore(database, request.clipboard).load().changes.any {
+                    it.change.contentHash == query.hash && !it.change.deleted
+                },
+            ) { "Payload is not referenced by this clipboard" }
+            val payload =
+                requireNotNull(
+                    database.sharedClipboardDatabaseQueries
+                        .getPayload(
+                            request.clipboard,
+                            query.hash,
+                        ).executeAsOneOrNull(),
+                ) {
+                    "Payload is not available on this replica"
+                }.encodeToByteArray()
+            require(query.offset < payload.size)
+            val end = query.offset + minOf(query.limit, payload.size - query.offset)
+            ClipboardPayloadChunk(
+                query.hash,
+                query.offset,
+                payload.size,
+                getCodecsUtils().base64Encode(payload.copyOfRange(query.offset, end)),
+            )
+        }
+
+    /** Caller must supply a fully staged payload; no row is inserted before its signed hash verifies. */
+    suspend fun storePayload(
+        clipboard: String,
+        hash: String,
+        bytes: ByteArray,
+    ) = mutex.withLock {
+        open(clipboard)
+        require(
+            SqlSignedClipboardStore(database, clipboard).load().changes.any {
+                it.change.contentHash == hash && !it.change.deleted
+            },
+        ) { "Payload is not referenced by this clipboard" }
+        val computed =
+            "sha256:" +
+                getCodecsUtils().base64Encode(
+                    CryptographyProvider.Default
+                        .get(SHA256)
+                        .hasher()
+                        .hash(bytes),
+                )
+        require(computed == hash) { "Clipboard payload hash did not verify" }
+        val text = bytes.decodeToString(throwOnInvalidSequence = true)
+        val payload = Json.decodeFromString<CapturedClipboardPayload>(text)
+        require(payload.originDevice.isNotBlank() && payload.localPasteId > 0 && payload.size >= 0)
+        val entry = Json.encodeToString(listOf("capture/v1", payload.originDevice, payload.localPasteId.toString()))
+        require(
+            SqlSignedClipboardStore(database, clipboard).load().changes.any {
+                it.change.contentHash == hash && it.change.id.device == payload.originDevice && it.change.entry == entry
+            },
+        ) { "Captured payload identity does not match its signed event" }
+        database.transaction {
+            val queries = database.sharedClipboardDatabaseQueries
+            val existing = queries.getPayload(clipboard, hash).executeAsOneOrNull()
+            require(existing == null || existing == text) { "Conflicting clipboard payload" }
+            if (existing == null) queries.insertPayload(clipboard, hash, text)
+        }
+    }
 
     /** A reply authenticates its transport, while each event must independently authenticate its original author. */
     suspend fun ingest(reply: VerifiedClipboardPeerReply): Int =

@@ -82,8 +82,10 @@ import com.crosspaste.sync.journal.ClipboardHistoryPuller
 import com.crosspaste.sync.journal.ClipboardHistoryService
 import com.crosspaste.sync.journal.ClipboardInvitationSender
 import com.crosspaste.sync.journal.ClipboardInvitationService
+import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
+import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
 import com.crosspaste.transport.bluetooth.BluetoothTransportController
 import com.crosspaste.ui.devices.DefaultPairingV3UiController
@@ -122,6 +124,14 @@ fun desktopNetworkModule(
         single { ClipboardInvitationSender(get(), get()) }
         single { ClipboardHistoryService(get(), get<AppInfo>().appInstanceId, get(), get()) }
         single { ClipboardHistoryPuller(get(), get()) }
+        single { ClipboardPayloadTransfer(get()) }
+        single {
+            DesktopClipboardPayloadReceiver(
+                get(),
+                get(),
+                get<AppPathProvider>().pasteUserPath.resolve("shared-clipboard-staging").toNioPath(),
+            )
+        }
         single { BluetoothTransportController(get(), get(), get(), get(), get(), lazy { get() }, get()) }
         // region CLI
         single<CliEndpointFile> { CliEndpointFile(get(), devCliEndpointPointerPath(get())) }

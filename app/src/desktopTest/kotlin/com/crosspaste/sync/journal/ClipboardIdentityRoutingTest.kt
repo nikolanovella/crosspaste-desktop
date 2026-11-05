@@ -10,10 +10,15 @@ import com.crosspaste.net.plugin.ServerEncryptPluginFactory
 import com.crosspaste.net.routing.ClipboardPeerIdentity
 import com.crosspaste.net.routing.clipboardHistoryRouting
 import com.crosspaste.net.routing.clipboardIdentityRouting
+import com.crosspaste.paste.PasteCollection
+import com.crosspaste.paste.item.CreatePasteItemHelper.createTextPasteItem
 import com.crosspaste.secure.SecureKeyPairSerializer
 import com.crosspaste.utils.HEADER_APP_INSTANCE_ID
 import com.crosspaste.utils.HEADER_TARGET_APP_INSTANCE_ID
 import com.crosspaste.utils.getCodecsUtils
+import com.crosspaste.utils.getJsonUtils
+import dev.whyoleg.cryptography.CryptographyProvider
+import dev.whyoleg.cryptography.algorithms.SHA256
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -29,6 +34,7 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -188,6 +194,45 @@ class ClipboardIdentityRoutingTest {
             assertEquals(1, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
             assertEquals(0, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
             assertEquals(sql.load(), SqlSignedClipboardStore(aDb, "shared").load())
+            getJsonUtils()
+            val item = createTextPasteItem(text = "Encrypted HTTP payload fixture")
+            val payload =
+                Json
+                    .encodeToString(
+                        CapturedClipboardPayload(
+                            "b",
+                            42,
+                            item.toStoredJson(),
+                            PasteCollection(emptyList()).toStoredJson(),
+                            0,
+                            null,
+                            item.size,
+                            item.hash,
+                            1,
+                        ),
+                    ).encodeToByteArray()
+            val hash =
+                "sha256:" +
+                    getCodecsUtils().base64Encode(
+                        CryptographyProvider.Default
+                            .get(SHA256)
+                            .hasher()
+                            .hash(payload),
+                    )
+            bDb.sharedClipboardDatabaseQueries.insertPayload("shared", hash, payload.decodeToString())
+            bJournal.append(Json.encodeToString(listOf("capture/v1", "b", "42")), hash)
+            assertEquals(1, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
+            val staging = Files.createTempDirectory("clipboard-http-payload-")
+            try {
+                val receiver = DesktopClipboardPayloadReceiver(ClipboardPayloadTransfer(sender), aHistory, staging)
+                assertEquals(payload.size, receiver.receive("b", "shared", hash, payload.size))
+                assertEquals(
+                    payload.decodeToString(),
+                    aDb.sharedClipboardDatabaseQueries.getPayload("shared", hash).executeAsOne(),
+                )
+            } finally {
+                Files.delete(staging)
+            }
         }
 
     @Test

@@ -122,8 +122,17 @@ Tests cover two offline replicas with 137 records, bounded bidirectional catch-u
 restart, replay, holes in origin sequences, invalid cursors, disabled membership,
 and atomic rejection of a batch containing one bad signature. The encrypted HTTP
 invitation test also checks history denial before joining and successful catch-up
-after local consent. This is event metadata only: referenced payload fetching,
-clipboard-history materialization and the recurring runtime worker remain pending.
+after local consent. Clipboard-history materialization and the recurring runtime
+worker remain pending.
+
+`/clipboard/payload` transfers frozen capture metadata in bounded byte chunks,
+only when a verified signed event in that clipboard references the hash. The
+client validates offsets, stable total size and a caller-supplied metadata budget.
+The desktop receiver writes private staging files, verifies the complete SHA-256
+and original capture identity before committing SQL, and removes staged bytes on
+success, interruption or rejection. Unicode spanning chunk boundaries is covered
+by byte-level assembly. This transfers captured metadata, including inline text;
+it does not yet transfer the image/file bytes referenced by that metadata.
 
 ## Required before live use
 
@@ -135,7 +144,8 @@ clipboard-history materialization and the recurring runtime worker remain pendin
 - Finish immutable snapshots of external/indirect file references and safe global
   reference release before enabling capture in the product. Managed owned-file
   retention is in source, but metadata alone does not protect external files.
-- Transfer and verify missing payloads separately from journal metadata.
+- Finish immutable image/file blob transfer separately from the implemented
+  captured-metadata transfer, and connect both to incoming materialization.
 - Drain missing batches across reconnects, including Bluetooth transport.
 - Separate historical catch-up from the live OS clipboard selection.
 - Preserve independent contribute/use settings: received history can remain
