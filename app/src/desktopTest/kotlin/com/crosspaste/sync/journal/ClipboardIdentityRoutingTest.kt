@@ -94,22 +94,41 @@ class ClipboardIdentityRoutingTest {
                 return proof to response
             }
 
-            suspend fun verified(
-                path: String,
-                operation: ClipboardPeerOperation,
-                body: String = "",
-            ): VerifiedClipboardPeerReply {
-                val (proof, response) = request(path, operation, body)
-                assertEquals(HttpStatusCode.OK, response.status)
-                return assertNotNull(f.a.verifiedReply("b", proof.request, response.body<ClipboardPeerResponse>()))
-            }
-            val identity = verified("/clipboard/identity", ClipboardPeerOperation.IDENTITY)
-            val offer = aInvites.prepare("shared", identity)
-            val pending =
-                verified("/clipboard/invitation", ClipboardPeerOperation.PROPOSE_JOIN, Json.encodeToString(offer))
+            val sender =
+                ClipboardPeerClient(
+                    f.a,
+                    object : ClipboardPeerWire {
+                        override suspend fun challenge(peer: String): ControlChallenge =
+                            encrypted
+                                .get("/clipboard/challenge") {
+                                    header(HEADER_APP_INSTANCE_ID, "a")
+                                    header(HEADER_TARGET_APP_INSTANCE_ID, peer)
+                                    header("secure", "1")
+                                }.body()
+
+                        override suspend fun post(
+                            peer: String,
+                            path: String,
+                            proof: ClipboardPeerProof,
+                        ): ClipboardPeerResponse {
+                            val response =
+                                encrypted.post("/clipboard/$path") {
+                                    header(HEADER_APP_INSTANCE_ID, "a")
+                                    header(HEADER_TARGET_APP_INSTANCE_ID, peer)
+                                    header("secure", "1")
+                                    contentType(ContentType.Application.Json)
+                                    setBody(proof)
+                                }
+                            assertEquals(HttpStatusCode.OK, response.status)
+                            return response.body()
+                        }
+                    },
+                )
+            val sending = ClipboardInvitationSender(sender, aInvites)
+            val offer = sending.send("shared", "b")
             assertEquals(
                 ClipboardInvitationState.PENDING,
-                Json.decodeFromString<ClipboardInvitationStatus>(pending.payload).state,
+                sending.check(offer),
             )
             assertNull(bDb.sharedClipboardDatabaseQueries.getWorkspace("shared").executeAsOneOrNull())
             assertEquals(
@@ -122,13 +141,7 @@ class ClipboardIdentityRoutingTest {
             )
             assertNull(bDb.sharedClipboardDatabaseQueries.getWorkspace("shared").executeAsOneOrNull())
             bInvites.accept(offer.id, contributeLocal = false)
-            val accepted =
-                verified(
-                    "/clipboard/invitation/status",
-                    ClipboardPeerOperation.JOIN_STATUS,
-                    Json.encodeToString(ClipboardInvitationLookup(offer.id)),
-                )
-            assertEquals(ClipboardInvitationState.ACCEPTED, aInvites.confirm(accepted))
+            assertEquals(ClipboardInvitationState.ACCEPTED, sending.check(offer))
             assertEquals(
                 2,
                 aDb.sharedClipboardDatabaseQueries

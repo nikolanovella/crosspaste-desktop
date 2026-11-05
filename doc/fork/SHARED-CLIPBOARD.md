@@ -98,9 +98,15 @@ preferences are preserved. Pending offers expire after ten minutes. After a
 restart, an identical offer can acknowledge consent already saved in SQL, but
 adding any new member still requires approval.
 
-The receiving flow and encrypted HTTP consent boundary are tested. The outgoing
-invitation controller and controls are not connected yet, and the running app has
-not been updated with this experimental UI. Membership propagation to additional
+The receiving flow and encrypted HTTP consent boundary are tested.
+`ClipboardPeerClient` obtains a fresh challenge for each request and rejects
+responses that do not authenticate to that exact request. Its production adapter
+uses the existing encrypted client and peer route resolver, including registered
+Bluetooth routes. `ClipboardInvitationSender` prepares and sends offers, then
+confirms their status without granting remote consent. Both are registered in
+desktop DI; the encrypted HTTP test exercises the complete sending and receiving
+service flow. Sending controls are not connected yet, and the running app has not
+been updated with this experimental UI. Membership propagation to additional
 existing members also remains to be implemented.
 
 ## Required before live use

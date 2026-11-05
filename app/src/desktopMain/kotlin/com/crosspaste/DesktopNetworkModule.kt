@@ -78,11 +78,16 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.sync.journal.ClipboardInvitationSender
 import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
+import com.crosspaste.sync.journal.ClipboardPeerClient
+import com.crosspaste.sync.journal.PasteClipboardPeerWire
 import com.crosspaste.transport.bluetooth.BluetoothTransportController
 import com.crosspaste.ui.devices.DefaultPairingV3UiController
 import com.crosspaste.ui.devices.PairingV3UiController
+import com.crosspaste.utils.HostAndPort
+import com.crosspaste.utils.buildUrl
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -100,6 +105,19 @@ fun desktopNetworkModule(
     module {
         single { ClipboardPeerAuthentication(get<AppInfo>().appInstanceId, get()) }
         single { ClipboardInvitationService(get(), get<AppInfo>().appInstanceId, get(), get()) }
+        single {
+            ClipboardPeerClient(
+                get(),
+                PasteClipboardPeerWire(get()) { peer ->
+                    val handler = requireNotNull(get<SyncManager>().getSyncHandler(peer)) { "Device is not available" }
+                    val host = requireNotNull(handler.getConnectHostAddress()) { "Device is offline" }
+                    val address = HostAndPort(host, handler.currentSyncRuntimeInfo.port, peer)
+                    val targetUrl: io.ktor.http.URLBuilder.() -> Unit = { buildUrl(address) }
+                    targetUrl
+                },
+            )
+        }
+        single { ClipboardInvitationSender(get(), get()) }
         single { BluetoothTransportController(get(), get(), get(), get(), get(), lazy { get() }, get()) }
         // region CLI
         single<CliEndpointFile> { CliEndpointFile(get(), devCliEndpointPointerPath(get())) }
