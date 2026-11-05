@@ -109,10 +109,27 @@ service flow. Sending controls are not connected yet, and the running app has no
 been updated with this experimental UI. Membership propagation to additional
 existing members also remains to be implemented.
 
+## Missing-history catch-up
+
+`ClipboardHistoryService` serves bounded missing-event batches only to explicitly
+approved members of an enabled clipboard. Being paired is insufficient. The
+encrypted `/clipboard/history` route uses a fresh authenticated challenge and
+binds its response to the exact request. `ClipboardHistoryPuller` derives its
+cursor from locally verified records and commits original-author signatures to
+the append-only SQL store; no incoming OS clipboard selection occurs here.
+
+Tests cover two offline replicas with 137 records, bounded bidirectional catch-up,
+restart, replay, holes in origin sequences, invalid cursors, disabled membership,
+and atomic rejection of a batch containing one bad signature. The encrypted HTTP
+invitation test also checks history denial before joining and successful catch-up
+after local consent. This is event metadata only: referenced payload fetching,
+clipboard-history materialization and the recurring runtime worker remain pending.
+
 ## Required before live use
 
-- Connect the approved SQL membership resolver to the live invitation and sync
-  services. Authenticated transport alone does not establish clipboard membership.
+- Complete approved-membership propagation and lifecycle integration. The
+  invitation and history services now use the SQL resolver, but newly admitted
+  identities still need verified propagation to the other existing replicas.
 - Wire the capture consumer into the app lifecycle after payload retention and
   approved membership are ready; finish edits/deletions and incoming materialization.
 - Finish immutable snapshots of external/indirect file references and safe global

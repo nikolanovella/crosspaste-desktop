@@ -78,6 +78,8 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.sync.journal.ClipboardHistoryPuller
+import com.crosspaste.sync.journal.ClipboardHistoryService
 import com.crosspaste.sync.journal.ClipboardInvitationSender
 import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
@@ -118,6 +120,8 @@ fun desktopNetworkModule(
             )
         }
         single { ClipboardInvitationSender(get(), get()) }
+        single { ClipboardHistoryService(get(), get<AppInfo>().appInstanceId, get(), get()) }
+        single { ClipboardHistoryPuller(get(), get()) }
         single { BluetoothTransportController(get(), get(), get(), get(), get(), lazy { get() }, get()) }
         // region CLI
         single<CliEndpointFile> { CliEndpointFile(get(), devCliEndpointPointerPath(get())) }
@@ -258,6 +262,7 @@ fun desktopNetworkModule(
                 wsMessageHandler = get(),
                 clipboardPeerAuth = get(),
                 clipboardInvitations = get(),
+                clipboardHistory = get(),
                 wsSessionManager = get(),
             )
         }

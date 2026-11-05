@@ -8,6 +8,7 @@ import com.crosspaste.net.plugin.ClientEncryptPlugin
 import com.crosspaste.net.plugin.ServerDecryptionPluginFactory
 import com.crosspaste.net.plugin.ServerEncryptPluginFactory
 import com.crosspaste.net.routing.ClipboardPeerIdentity
+import com.crosspaste.net.routing.clipboardHistoryRouting
 import com.crosspaste.net.routing.clipboardIdentityRouting
 import com.crosspaste.secure.SecureKeyPairSerializer
 import com.crosspaste.utils.HEADER_APP_INSTANCE_ID
@@ -61,6 +62,7 @@ class ClipboardIdentityRoutingTest {
                         f.b,
                         invitations = bInvites,
                     ) { ClipboardPeerIdentity("b", publicKey) }
+                    clipboardHistoryRouting("b", f.b, ClipboardHistoryService(bDb, "b", f.bStore, serializer))
                 }
             }
             val encrypted =
@@ -134,6 +136,14 @@ class ClipboardIdentityRoutingTest {
             assertEquals(
                 HttpStatusCode.Unauthorized,
                 request(
+                    "/clipboard/history",
+                    ClipboardPeerOperation.HISTORY,
+                    Json.encodeToString(ClipboardHistoryRequest(emptyMap())),
+                ).second.status,
+            )
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                request(
                     "/clipboard/invitation/status",
                     ClipboardPeerOperation.ACCEPT_JOIN,
                     Json.encodeToString(ClipboardInvitationLookup(offer.id)),
@@ -163,6 +173,21 @@ class ClipboardIdentityRoutingTest {
                     .executeAsOne()
                     .contributeLocal,
             )
+            val sql = SqlSignedClipboardStore(bDb, "shared")
+            val bMembers = ClipboardMembershipStore(bDb, serializer)
+            val bJournal =
+                SignedClipboardJournal.open(
+                    "b",
+                    f.bStore.secureKeyPair.signKeyPair.privateKey,
+                    { bMembers.signingKey("shared", it) },
+                    sql.load(),
+                    sql,
+                )
+            bJournal.append("offline-b-entry", "test-content")
+            val aHistory = ClipboardHistoryService(aDb, "a", f.aStore, serializer)
+            assertEquals(1, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
+            assertEquals(0, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
+            assertEquals(sql.load(), SqlSignedClipboardStore(aDb, "shared").load())
         }
 
     @Test

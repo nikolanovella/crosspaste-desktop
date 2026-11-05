@@ -52,7 +52,7 @@ class PasteClipboardPeerWire(
         path: String,
         proof: ClipboardPeerProof,
     ): ClipboardPeerResponse {
-        require(path in setOf("identity", "invitation", "invitation/status"))
+        require(path in setOf("identity", "invitation", "invitation/status", "history"))
         val address = endpoint(peer)
         val response =
             client.post(
@@ -103,6 +103,13 @@ class ClipboardPeerClient(
             "invitation/status",
             Json.encodeToString(ClipboardInvitationLookup(invitationId)),
         )
+
+    suspend fun history(
+        peer: String,
+        clipboard: String,
+        query: ClipboardHistoryRequest,
+    ): VerifiedClipboardPeerReply =
+        exchange(peer, clipboard, ClipboardPeerOperation.HISTORY, "history", Json.encodeToString(query))
 
     private suspend fun exchange(
         peer: String,
