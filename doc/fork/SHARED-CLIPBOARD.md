@@ -181,8 +181,22 @@ Only after every representation is present is the signed manifest committed.
 Receiving requires an enabled local workspace, paired approved source and the exact
 active event/metadata already accepted into local history. This is checked again
 before manifest publication. It does not write the OS clipboard or create native
-history rows. These services remain source-only; safe destination landing and
-runtime activation are unfinished.
+history rows itself.
+
+The desktop landing service places complete trees under a private per-event
+directory and rewrites both primary and alternate file representations to local
+paths. Sender paths are never used as destinations. Portable filenames avoid
+Windows device names, forbidden characters, trailing dots/spaces and sibling
+collisions across case/Unicode normalization. Directories, including empty child
+directories, are created with the verified files before an atomic directory rename.
+Reuse verifies exact tree membership and hashes, rejecting unexpected files or links.
+
+Native history materialization now calls this landing service for file-backed
+items instead of leaving every file pending. Items still wait when bytes are
+missing. A fresh frontier check inside the SQL publication transaction prevents
+an item deleted during file preparation from becoming a new loaded row. File
+placement and native history services remain source-only; recurring runtime
+activation and the complete global cache/deletion policy are unfinished.
 
 ## Native history projection
 

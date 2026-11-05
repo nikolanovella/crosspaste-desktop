@@ -28,6 +28,7 @@ class ClipboardHistoryMaterializer(
     private val localDevice: String,
     private val searchContent: (PasteData) -> String?,
     private val render: suspend (Long, Int) -> Unit,
+    private val fileLanding: suspend (SignedClipboardChange, ByteArray, PasteData) -> PasteData? = { _, _, _ -> null },
 ) {
     private val mutex = Mutex()
 
@@ -104,7 +105,7 @@ class ClipboardHistoryMaterializer(
                     requireNotNull(
                         PasteItem.fromStoredJson(capture.pasteAppearItem),
                     ) { "Invalid stored clipboard item" }
-                val paste =
+                var paste =
                     PasteData(
                         id = capture.localPasteId,
                         appInstanceId = capture.originDevice,
@@ -120,17 +121,33 @@ class ClipboardHistoryMaterializer(
                     )
                 require(paste.hasValidContent()) { "Stored clipboard content is invalid" }
                 if (paste.getPasteAppearItems().any { it is PasteFiles }) {
-                    files.add(hash)
-                    continue
+                    val signed = snapshot.changes.single { it.change.id == change.id }
+                    val landed = fileLanding(signed, bytes, paste)
+                    if (landed == null) {
+                        files.add(hash)
+                        continue
+                    }
+                    require(landed.hasValidContent())
+                    paste = landed
                 }
                 prepared.add(Prepared(change, payload, paste))
             }
             val created =
                 database.transactionWithResult {
                     require(queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled == true)
+                    val latest = SqlSignedClipboardStore(database, clipboard).load()
+                    val active =
+                        ClipboardJournal(
+                            localDevice,
+                            ClipboardJournalSnapshot(
+                                clipboard,
+                                latest.changes.map { it.change },
+                            ),
+                        ) {}.allHeads().filterNot { it.deleted }.map { it.id }.toSet()
                     var count = 0
                     for (item in prepared) {
                         val change = item.change
+                        if (change.id !in active) continue
                         val hash = requireNotNull(change.contentHash)
                         if (queries
                                 .getProjection(

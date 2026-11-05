@@ -108,6 +108,41 @@ internal class DesktopClipboardBlobStore(
             mutex.withLock { verified(blob) }
         }
 
+    suspend fun matches(
+        source: Path,
+        blob: ClipboardBlob,
+    ): Boolean =
+        withContext(Dispatchers.IO) {
+            if (!Files.isRegularFile(source, NOFOLLOW_LINKS) ||
+                Files.size(source) != blob.size
+            ) {
+                return@withContext false
+            }
+            val digest = MessageDigest.getInstance("SHA-256")
+            FileChannel.open(source, READ, NOFOLLOW_LINKS).use { channel ->
+                val buffer = ByteBuffer.allocate(CHUNK_BYTES)
+                while (true) {
+                    buffer.clear()
+                    val read = channel.read(buffer)
+                    if (read < 0) break
+                    if (read > 0) digest.update(buffer.array(), 0, read)
+                }
+            }
+            HexFormat.of().formatHex(digest.digest()) == blob.sha256
+        }
+
+    suspend fun copyVerified(
+        blob: ClipboardBlob,
+        destination: Path,
+    ) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            require(verified(blob)) { "Private file bytes are unavailable" }
+            Files.copy(path(blob.sha256), destination)
+            require(matches(destination, blob)) { "Landed file SHA-256 did not verify" }
+            FileChannel.open(destination, WRITE).use { it.force(true) }
+        }
+    }
+
     /** Range reads do not allocate or hash the entire file. Receiver must verify full SHA-256 before publication. */
     suspend fun readChunk(
         hash: String,

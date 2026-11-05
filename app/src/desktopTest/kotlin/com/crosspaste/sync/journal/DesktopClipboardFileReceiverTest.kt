@@ -21,7 +21,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-private class FileReceiverFixture(
+internal class FileReceiverFixture(
     val root: Path,
     val capture: ManifestFixture,
 ) {
@@ -94,7 +94,7 @@ private class FileReceiverFixture(
     }
 }
 
-private suspend fun fileReceiverFixture(): FileReceiverFixture {
+internal suspend fun fileReceiverFixture(): FileReceiverFixture {
     val capture = manifestFixture()
     val root = Files.createTempDirectory("clipboard-file-receiver-test-")
     val fixture = FileReceiverFixture(root, capture)

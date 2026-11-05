@@ -95,6 +95,7 @@ import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
 import com.crosspaste.sync.journal.DesktopClipboardBlobStore
+import com.crosspaste.sync.journal.DesktopClipboardFileLanding
 import com.crosspaste.sync.journal.DesktopClipboardFileManifestStore
 import com.crosspaste.sync.journal.DesktopClipboardFileReceiver
 import com.crosspaste.sync.journal.DesktopClipboardFileSnapshotter
@@ -145,6 +146,7 @@ fun desktopNetworkModule(
             val reader = get<PasteItemReader>()
             val search = get<SearchContentService>()
             val tasks = get<TaskSubmitter>()
+            val landing = get<DesktopClipboardFileLanding>()
             ClipboardHistoryMaterializer(
                 get(),
                 get(),
@@ -153,10 +155,19 @@ fun desktopNetworkModule(
                     search.createSearchContent(paste.source, paste.pasteAppearItem?.let { reader.getSearchContent(it) })
                 },
                 render = { id, type -> tasks.submit { addRenderingTask(id, PasteType.fromType(type)) } },
+                fileLanding = landing::land,
             )
         }
         single { ClipboardPayloadTransfer(get()) }
         single { ClipboardFileTransfer(get(), get()) }
+        single {
+            DesktopClipboardFileLanding(
+                get<AppPathProvider>().pasteUserPath.resolve("shared-clipboard-landings").toNioPath(),
+                get(),
+                get(),
+                get(),
+            )
+        }
         single {
             DesktopClipboardFileReceiver(
                 get(),
