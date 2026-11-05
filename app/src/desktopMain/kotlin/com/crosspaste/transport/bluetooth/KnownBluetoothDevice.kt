@@ -22,11 +22,12 @@ private data class BluetoothInspection(
     val devices: List<KnownBluetoothDevice>,
 )
 
-internal suspend fun inspectPairedWindowsBluetoothDevices(): List<KnownBluetoothDevice> =
+internal suspend fun inspectPairedBluetoothDevices(windows: Boolean): List<KnownBluetoothDevice> =
     withContext(Dispatchers.IO) {
         val resources = System.getProperty("compose.application.resources.dir")
         require(!resources.isNullOrBlank())
-        val adapter = Path.of(resources, "bluetooth", "WindowsBluetoothTransport.exe")
+        val executable = if (windows) "WindowsBluetoothTransport.exe" else "MacosBluetoothTransport"
+        val adapter = Path.of(resources, "bluetooth", executable)
         require(Files.isRegularFile(adapter))
         val output = Files.createTempFile("crosspaste-bluetooth-", ".json")
         try {

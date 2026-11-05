@@ -133,6 +133,24 @@ static void Status(const char* text) {
 int main(int argc, const char* argv[]) {
     @autoreleasepool {
         signal(SIGPIPE, SIG_IGN);
+        if (argc == 2 && std::strcmp(argv[1], "--inspect") == 0) {
+            IOBluetoothHostController* controller = [IOBluetoothHostController defaultController];
+            NSString* address = [controller addressAsString];
+            NSMutableArray* devices = [NSMutableArray array];
+            for (IOBluetoothDevice* device in [IOBluetoothDevice pairedDevices]) {
+                if (devices.count >= 256) break;
+                NSString* remote = [[device addressString] stringByReplacingOccurrencesOfString:@"-" withString:@":"];
+                if (!remote.length) continue;
+                NSString* name = [device nameOrAddress] ?: remote;
+                [devices addObject:@{ @"address": remote, @"name": name, @"paired": @YES }];
+            }
+            NSDictionary* result = @{ @"version": @1, @"radioAvailable": @(controller != nil),
+                @"connectable": @([controller powerState] == kBluetoothHCIPowerStateON),
+                @"localAddress": address ?: [NSNull null], @"devices": devices };
+            NSData* json = [NSJSONSerialization dataWithJSONObject:result options:0 error:nullptr];
+            if (!json) return 3;
+            return WriteAll(STDOUT_FILENO, [json bytes], [json length]) && WriteAll(STDOUT_FILENO, "\n", 1) ? 0 : 3;
+        }
         if (argc == 2 && std::strcmp(argv[1], "--self-test") == 0) {
             // Pure constant/argument check; never accesses the radio or starts SDP.
             bool valid = sizeof(CrossPasteBluetoothServiceUuid) == 16 && CrossPasteBluetoothServiceUuid[0] == 0x7c

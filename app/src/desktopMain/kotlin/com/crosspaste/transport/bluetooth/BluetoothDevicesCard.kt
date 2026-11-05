@@ -73,40 +73,58 @@ internal fun BluetoothDevicesCard() {
                     }
                 }
             }
-            if (platform.isWindows()) {
-                TextButton(
-                    enabled = !connection.active && !inspecting,
-                    onClick = {
-                        inspecting = true
-                        scope.launch {
-                            try {
-                                pairedDevices = inspectPairedWindowsBluetoothDevices()
-                                inspectionMessage =
-                                    if (pairedDevices.isEmpty()) "No paired Bluetooth devices found" else ""
-                                deviceMenuOpen = pairedDevices.isNotEmpty()
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (_: Exception) {
-                                inspectionMessage = "Could not read paired devices. You can still enter the address."
-                            } finally {
-                                inspecting = false
-                            }
+            val windows = platform.isWindows()
+            TextButton(
+                enabled = !connection.active && !inspecting,
+                onClick = {
+                    inspecting = true
+                    scope.launch {
+                        try {
+                            pairedDevices = inspectPairedBluetoothDevices(windows)
+                            inspectionMessage =
+                                if (pairedDevices.isEmpty()) "No paired Bluetooth devices found" else ""
+                            deviceMenuOpen = pairedDevices.isNotEmpty()
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            inspectionMessage =
+                                if (windows) {
+                                    "Could not read paired devices. You can still enter the address."
+                                } else {
+                                    "Could not read paired devices. Check Bluetooth in System Settings."
+                                }
+                        } finally {
+                            inspecting = false
                         }
+                    }
+                },
+            ) {
+                Text(
+                    when {
+                        inspecting -> "Reading paired devices…"
+                        windows -> "Choose a paired Bluetooth device"
+                        else -> "View paired Bluetooth devices"
                     },
-                ) {
-                    Text(if (inspecting) "Reading paired devices…" else "Choose a paired Bluetooth device")
-                    DropdownMenu(expanded = deviceMenuOpen, onDismissRequest = { deviceMenuOpen = false }) {
-                        pairedDevices.forEach { device ->
+                )
+                DropdownMenu(expanded = deviceMenuOpen, onDismissRequest = { deviceMenuOpen = false }) {
+                    pairedDevices.forEach { device ->
+                        val label = device.name.ifBlank { device.address }
+                        if (windows) {
                             DropdownMenuItem(
-                                text = { Text(device.name.ifBlank { device.address }) },
+                                text = { Text(label) },
                                 onClick = {
                                     address = device.address
                                     deviceMenuOpen = false
                                 },
                             )
+                        } else {
+                            Text(label, modifier = Modifier.padding(horizontal = medium, vertical = small))
                         }
                     }
                 }
+            }
+            if (inspectionMessage.isNotEmpty()) Text(inspectionMessage, style = MaterialTheme.typography.bodySmall)
+            if (windows) {
                 TextButton(
                     enabled = !connection.active,
                     onClick = {
@@ -133,7 +151,7 @@ internal fun BluetoothDevicesCard() {
                 ) {
                     Text("Open Windows Bluetooth settings")
                 }
-                if (inspectionMessage.isNotEmpty()) Text(inspectionMessage, style = MaterialTheme.typography.bodySmall)
+
                 OutlinedTextField(
                     value = address,
                     onValueChange = { address = it },
