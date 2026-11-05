@@ -1,8 +1,13 @@
 package com.crosspaste.config
 
 import com.crosspaste.presist.OneFilePersist
+import com.crosspaste.test.IntegrationTest
 import com.crosspaste.utils.DesktopLocaleUtils
+import io.mockk.every
+import io.mockk.spyk
+import io.mockk.verify
 import okio.Path.Companion.toOkioPath
+import java.io.IOException
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,6 +17,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+@IntegrationTest
 class DesktopConfigManagerTest {
 
     private fun createConfigManager(): Pair<DesktopConfigManager, okio.Path> {
@@ -165,22 +171,23 @@ class DesktopConfigManagerTest {
 
     @Test
     fun `unreadable config is never overwritten with defaults`() {
-        val (_, configPath) = createConfigManager()
+        val (seed, configPath) = createConfigManager()
+        seed.updateConfig("port", 5555)
         val configFile = configPath.toFile()
-        val original = """{"port":5555}"""
-        configFile.writeText(original)
-        assertTrue(configFile.setReadable(false))
-        try {
-            val manager = DesktopConfigManager(OneFilePersist(configPath), DesktopLocaleUtils)
-            assertEquals(13129, manager.getCurrentConfig().port)
+        val original = configFile.readText()
+        // Windows cannot implement File.setReadable(false); privileged Unix runners
+        // may still read it. Inject the actual I/O failure at the persistence boundary.
+        val persist = spyk(OneFilePersist(configPath))
+        every { persist.read(DesktopAppConfig::class) } throws IOException("Access denied")
+        val manager = DesktopConfigManager(persist, DesktopLocaleUtils)
+        assertEquals(13129, manager.getCurrentConfig().port)
 
-            manager.updateConfig("lastPasteboardChangeCount", 7)
+        manager.updateConfig("lastPasteboardChangeCount", 7)
 
-            // The session keeps working in memory, but the user's file stays as it was.
-            assertEquals(7, manager.getCurrentConfig().lastPasteboardChangeCount)
-        } finally {
-            configFile.setReadable(true)
-        }
+        // The session keeps working in memory, but the user's file stays as it was.
+        assertEquals(7, manager.getCurrentConfig().lastPasteboardChangeCount)
+        verify(exactly = 0) { persist.save(any<DesktopAppConfig>()) }
+        verify(exactly = 0) { persist.quarantine() }
         assertEquals(original, configFile.readText())
         assertFalse(
             configPath.parent!!
@@ -208,44 +215,39 @@ class DesktopConfigManagerTest {
 
     @Test
     fun `updateConfigDurably throws and leaves memory unchanged on save failure`() {
-        val (_, configPath) = createConfigManager()
-        val configDir = configPath.parent!!.toFile()
-        val manager = DesktopConfigManager(OneFilePersist(configPath), DesktopLocaleUtils)
+        val (seed, configPath) = createConfigManager()
+        seed.updateConfig("port", 5555)
+        val original = configPath.toFile().readText()
+        val persist = spyk(OneFilePersist(configPath))
+        val manager = DesktopConfigManager(persist, DesktopLocaleUtils)
         val initialPort = manager.getCurrentConfig().port
+        assertEquals(5555, initialPort)
+        every { persist.save(any<DesktopAppConfig>()) } throws IOException("Disk full")
+        assertFailsWith<Exception> {
+            manager.updateConfigDurably(
+                keys = listOf("port"),
+                values = listOf(9999),
+            )
+        }
+        assertEquals(initialPort, manager.getCurrentConfig().port)
+        assertEquals(original, configPath.toFile().readText())
+    }
 
-        configDir.setWritable(false)
-        try {
-            assertFailsWith<Exception> {
+    @Test
+    fun `updateConfigDurably refuses to save and throws when saveBlocked is true`() {
+        val (seed, configPath) = createConfigManager()
+        seed.updateConfig("port", 5555)
+        val persist = spyk(OneFilePersist(configPath))
+        every { persist.read(DesktopAppConfig::class) } throws IOException("Access denied")
+        val manager = DesktopConfigManager(persist, DesktopLocaleUtils)
+        val exception =
+            assertFailsWith<IllegalStateException> {
                 manager.updateConfigDurably(
                     keys = listOf("port"),
                     values = listOf(9999),
                 )
             }
-        } finally {
-            configDir.setWritable(true)
-        }
-
-        assertEquals(initialPort, manager.getCurrentConfig().port)
-    }
-
-    @Test
-    fun `updateConfigDurably refuses to save and throws when saveBlocked is true`() {
-        val (_, configPath) = createConfigManager()
-        val configFile = configPath.toFile()
-        configFile.writeText("""{"port":5555}""")
-        assertTrue(configFile.setReadable(false))
-        try {
-            val manager = DesktopConfigManager(OneFilePersist(configPath), DesktopLocaleUtils)
-            val exception =
-                assertFailsWith<IllegalStateException> {
-                    manager.updateConfigDurably(
-                        keys = listOf("port"),
-                        values = listOf(9999),
-                    )
-                }
-            assertTrue(exception.message?.contains("refusing to save") == true)
-        } finally {
-            configFile.setReadable(true)
-        }
+        assertTrue(exception.message?.contains("refusing to save") == true)
+        verify(exactly = 0) { persist.save(any<DesktopAppConfig>()) }
     }
 }
