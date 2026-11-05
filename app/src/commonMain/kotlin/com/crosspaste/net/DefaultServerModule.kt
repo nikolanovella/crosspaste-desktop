@@ -150,6 +150,7 @@ open class DefaultServerModule(
                     pasteDao,
                     syncRoutingApi,
                     userDataPathProvider,
+                    decorateOutgoing = pasteReleaseService::outgoingPaste,
                 )
                 pushRouting(
                     appInfo,

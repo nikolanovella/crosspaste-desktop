@@ -15,6 +15,7 @@ import io.ktor.util.reflect.*
 class PasteClientApi(
     private val pasteClient: PasteClient,
     private val configManager: CommonConfigManager,
+    private val decorateOutgoing: suspend (PasteData) -> PasteData = { it },
 ) {
 
     private val logger = KotlinLogging.logger {}
@@ -27,7 +28,7 @@ class PasteClientApi(
     ): ClientApiResult {
         val response =
             pasteClient.post(
-                message = pasteData,
+                message = decorateOutgoing(pasteData),
                 messageType = typeInfo<PasteData>(),
                 timeout = SEND_PASTE_TIMEOUT_MS,
                 headersBuilder = {

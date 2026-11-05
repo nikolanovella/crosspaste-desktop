@@ -83,6 +83,20 @@ CREATE TABLE SharedClipboardAdmissionEntity (
     PRIMARY KEY (clipboardId, deviceId)
 );
 
+CREATE TABLE SharedClipboardNativeIdentityEntity (
+    originDevice TEXT NOT NULL,
+    originPasteId INTEGER NOT NULL,
+    metadataHash TEXT NOT NULL,
+    contentHash TEXT NOT NULL,
+    localPasteId INTEGER NOT NULL,
+    authorVerified INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (originDevice, originPasteId, metadataHash)
+);
+
+CREATE INDEX SharedClipboardNativeIdentityPaste ON SharedClipboardNativeIdentityEntity(localPasteId);
+
+CREATE INDEX SharedClipboardCapturePaste ON SharedClipboardCaptureEntity(localPasteId);
+
 putWorkspace:
 INSERT OR REPLACE INTO SharedClipboardWorkspaceEntity(clipboardId, enabled, contributeLocal)
 VALUES (?, ?, ?);
@@ -174,3 +188,15 @@ SELECT * FROM SharedClipboardAdmissionEntity WHERE clipboardId = ? ORDER BY devi
 
 insertAdmission:
 INSERT INTO SharedClipboardAdmissionEntity VALUES (?, ?, ?);
+
+getNativeIdentity:
+SELECT * FROM SharedClipboardNativeIdentityEntity WHERE originDevice = ? AND originPasteId = ? AND metadataHash = ?;
+
+getNativeIdentitiesForPaste:
+SELECT * FROM SharedClipboardNativeIdentityEntity WHERE localPasteId = ? ORDER BY authorVerified DESC;
+
+putNativeIdentity:
+INSERT OR REPLACE INTO SharedClipboardNativeIdentityEntity VALUES (?, ?, ?, ?, ?, ?);
+
+getCapturesForPaste:
+SELECT * FROM SharedClipboardCaptureEntity WHERE localPasteId = ?;

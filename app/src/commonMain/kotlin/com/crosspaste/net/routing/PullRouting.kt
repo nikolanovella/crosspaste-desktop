@@ -37,6 +37,7 @@ fun Routing.pullRouting(
     pasteDao: PasteDao,
     syncRoutingApi: SyncRoutingApi,
     userDataPathProvider: UserDataPathProvider,
+    decorateOutgoing: suspend (PasteData) -> PasteData = { it },
 ) {
     val logger = KotlinLogging.logger {}
 
@@ -137,7 +138,7 @@ fun Routing.pullRouting(
             val batch =
                 recentPasteData
                     .filterSyncAllowed(appControl, configManager.getCurrentConfig())
-                    .encodeJsonArrayWithinLimit()
+                    .encodeJsonArrayWithinLimit(decorateOutgoing = { decorateOutgoing(it) })
 
             logger.debug {
                 "pull pasteBatch by ($fromAppInstanceId): ${batch.count}/${recentPasteData.size} items"
@@ -168,7 +169,7 @@ fun Routing.pullRouting(
             val batch =
                 recentPasteData
                     .filterSyncAllowed(appControl, configManager.getCurrentConfig())
-                    .encodeJsonArrayWithinLimit()
+                    .encodeJsonArrayWithinLimit(decorateOutgoing = { decorateOutgoing(it) })
 
             logger.debug {
                 "pull pasteBatch by ($fromAppInstanceId): ${batch.count}/${recentPasteData.size} items"
@@ -197,7 +198,7 @@ fun Routing.pullRouting(
                 }
 
             logger.debug { "pull paste by ($fromAppInstanceId): ${pasteData.id}" }
-            successResponse(call, pasteData)
+            successResponse(call, decorateOutgoing(pasteData))
         }
     }
 }
@@ -242,8 +243,9 @@ internal class EncodedPasteBatch(
  * skipped by the client cursor either way. Trimming from the tail keeps the
  * same behaviour, only with a byte budget instead of a row count.
  */
-internal fun List<PasteData>.encodeJsonArrayWithinLimit(
+internal inline fun List<PasteData>.encodeJsonArrayWithinLimit(
     maxBytes: Long = EncryptedHttpResourceLimits.MAX_JSON_RESPONSE_PLAINTEXT_SIZE,
+    decorateOutgoing: (PasteData) -> PasteData = { it },
 ): EncodedPasteBatch {
     val json = getJsonUtils().JSON
     val builder = StringBuilder("[")
@@ -251,7 +253,7 @@ internal fun List<PasteData>.encodeJsonArrayWithinLimit(
     var count = 0
 
     for (pasteData in this) {
-        val item = json.encodeToString(pasteData)
+        val item = json.encodeToString(decorateOutgoing(pasteData))
         val separatorBytes = if (count == 0) 0L else JSON_ITEM_SEPARATOR_SIZE
         val itemBytes = separatorBytes + item.utf8Size()
         if (count > 0 && encodedBytes + itemBytes > maxBytes) {

@@ -39,6 +39,7 @@ internal data class ClipboardCaptureCommit(
     val entry: String,
     val payload: String,
     val hash: String,
+    val identity: ClipboardNativeIdentityStore.Prepared? = null,
 )
 
 /** Append-only SQL storage. A stale writer cannot discard events committed since its last read. */
@@ -102,6 +103,11 @@ class SqlSignedClipboardStore internal constructor(
                     queries.insertPayload(clipboard, commit.hash, commit.payload)
                 } else {
                     require(existing == commit.payload) { "Conflicting clipboard payload" }
+                }
+                commit.identity?.let {
+                    ClipboardNativeIdentityStore(
+                        database,
+                    ).record(it, commit.capture.localPasteId, true)
                 }
                 queries.completeCapture(clipboard, commit.capture.localPasteId)
             }

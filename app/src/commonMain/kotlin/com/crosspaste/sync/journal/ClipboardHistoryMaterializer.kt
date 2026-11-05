@@ -31,11 +31,13 @@ class ClipboardHistoryMaterializer(
     private val fileLanding: suspend (SignedClipboardChange, ByteArray, PasteData) -> PasteData? = { _, _, _ -> null },
 ) {
     private val mutex = Mutex()
+    private val identities = ClipboardNativeIdentityStore(database)
 
     private data class Prepared(
         val change: ClipboardChange,
         val payload: String,
         val paste: PasteData,
+        val identity: ClipboardNativeIdentityStore.Prepared?,
     )
 
     suspend fun materialize(
@@ -130,7 +132,7 @@ class ClipboardHistoryMaterializer(
                     require(landed.hasValidContent())
                     paste = landed
                 }
-                prepared.add(Prepared(change, payload, paste))
+                prepared.add(Prepared(change, payload, paste, identities.verified(paste, hash)))
             }
             val created =
                 database.transactionWithResult {
@@ -173,8 +175,12 @@ class ClipboardHistoryMaterializer(
                             } else {
                                 null
                             }
+                        val aliased = item.identity?.let(identities::resolve)
                         val localId =
-                            if (original != null &&
+                            if (aliased != null) {
+                                reused++
+                                aliased.id
+                            } else if (original != null &&
                                 original.hash == paste.hash &&
                                 original.size == paste.size &&
                                 original.source == paste.source &&
@@ -203,6 +209,7 @@ class ClipboardHistoryMaterializer(
                                 count++
                                 database.pasteDatabaseQueries.getLastId().executeAsOne()
                             }
+                        item.identity?.let { identities.record(it, localId, true) }
                         queries.insertProjection(
                             clipboard,
                             change.id.device,

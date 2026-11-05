@@ -38,7 +38,11 @@ class ClipboardCaptureConsumer(
                             .hash(payload.encodeToByteArray())
                     val hash = "sha256:" + getCodecsUtils().base64Encode(hashBytes)
                     val entry = Json.encodeToString(listOf("capture/v1", device, capture.localPasteId.toString()))
-                    ClipboardCaptureCommit(capture, entry, payload, hash)
+                    val identity =
+                        ClipboardNativeIdentityStore(
+                            database,
+                        ).captured(CapturedClipboardPayload.from(capture), hash)
+                    ClipboardCaptureCommit(capture, entry, payload, hash, identity)
                 }
             val store = SqlSignedClipboardStore(database, clipboard, commits)
             var staged = store.load()

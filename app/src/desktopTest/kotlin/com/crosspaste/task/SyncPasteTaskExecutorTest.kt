@@ -21,6 +21,7 @@ import com.crosspaste.net.ws.WS_MAX_FRAME_SIZE
 import com.crosspaste.net.ws.WS_MAX_PAYLOAD_SIZE
 import com.crosspaste.net.ws.WsPayloadSendResult
 import com.crosspaste.net.ws.WsSessionManager
+import com.crosspaste.paste.ClipboardCaptureIdentity
 import com.crosspaste.paste.PasteCollection
 import com.crosspaste.paste.PasteData
 import com.crosspaste.paste.PasteState
@@ -85,6 +86,7 @@ class SyncPasteTaskExecutorTest {
         fun createExecutor(
             wsSingleFramePayloadLimit: Long = WS_MAX_FRAME_SIZE,
             wsChunkedPayloadLimit: Long = WS_MAX_PAYLOAD_SIZE,
+            decorateOutgoing: suspend (PasteData) -> PasteData = { it },
         ): SyncPasteTaskExecutor =
             SyncPasteTaskExecutor(
                 appControl = appControl,
@@ -97,6 +99,7 @@ class SyncPasteTaskExecutorTest {
                 wsSessionManager = wsSessionManager,
                 wsSingleFramePayloadLimit = wsSingleFramePayloadLimit,
                 wsChunkedPayloadLimit = wsChunkedPayloadLimit,
+                decorateOutgoing = decorateOutgoing,
             )
     }
 
@@ -517,6 +520,26 @@ class SyncPasteTaskExecutorTest {
             val result = executor.doExecuteTask(task)
 
             assertTrue(result is SuccessPasteTaskResult)
+        }
+
+    @Test
+    fun `websocket send includes the same capture decoration as HTTP`() =
+        runTest {
+            val deps = TestDeps()
+            val identity = ClipboardCaptureIdentity("original", 7, "metadata", "content")
+            val executor = deps.createExecutor(decorateOutgoing = { it.copy(captureIdentity = identity) })
+            val paste = createRealTextPasteData("WS identity")
+            val handler = createMockSyncHandler("remote-1", connectHostAddress = null)
+            coEvery { deps.pasteDao.getNoDeletePasteData(any()) } returns paste
+            coEvery { deps.syncManager.getSyncHandlers() } returns mapOf("remote-1" to handler)
+            val envelope = io.mockk.slot<com.crosspaste.net.ws.WsEnvelope>()
+            coEvery { deps.wsSessionManager.sendPastePush(any(), capture(envelope), any(), any()) } returns
+                WsPayloadSendResult.Sent
+            assertTrue(executor.doExecuteTask(createPasteTask()) is SuccessPasteTaskResult)
+            assertEquals(
+                identity,
+                jsonUtils.JSON.decodeFromString<PasteData>(envelope.captured.payload.decodeToString()).captureIdentity,
+            )
         }
 
     // ========== E. WebSocket fallback ==========

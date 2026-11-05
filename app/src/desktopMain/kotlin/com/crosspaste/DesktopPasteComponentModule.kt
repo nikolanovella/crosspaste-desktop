@@ -1,7 +1,9 @@
 package com.crosspaste
 
+import com.crosspaste.app.AppInfo
 import com.crosspaste.clean.CleanScheduler
 import com.crosspaste.cli.CliSymlinkService
+import com.crosspaste.db.paste.PasteDao
 import com.crosspaste.headless.HeadlessPasteboardService
 import com.crosspaste.i18n.GlobalCopywriter
 import com.crosspaste.image.GenerateImageService
@@ -65,6 +67,7 @@ import com.crosspaste.sync.FilePullService
 import com.crosspaste.sync.PastePullCursorManager
 import com.crosspaste.sync.PastePullService
 import com.crosspaste.sync.PastePullTrigger
+import com.crosspaste.sync.journal.ClipboardNativeIdentityStore
 import com.crosspaste.sync.journal.DesktopClipboardRecordingPolicy
 import com.crosspaste.task.CleanPasteTaskExecutor
 import com.crosspaste.task.CleanTaskTaskExecutor
@@ -195,6 +198,11 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
         single<PasteDataHelper> { PasteDataHelper(get()) }
         single<PasteItemReader> { DefaultPasteItemReader() }
         single<PasteReleaseService> {
+            val identities = get<ClipboardNativeIdentityStore>()
+            val dao = get<PasteDao>()
+            val search = get<SearchContentService>()
+            val reader = get<PasteItemReader>()
+            val device = get<AppInfo>().appInstanceId
             PasteReleaseService(
                 commonConfigManager = get(),
                 currentPaste = get(),
@@ -235,6 +243,19 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
                 taskSubmitter = get(),
                 userDataPathProvider = get(),
                 refreshSharedRecordingPolicy = get<DesktopClipboardRecordingPolicy>()::refresh,
+                createRemoteInline = { paste ->
+                    identities.receiveInline(
+                        paste,
+                        { value ->
+                            search.createSearchContent(
+                                value.source,
+                                value.pasteAppearItem?.let { reader.getSearchContent(it) },
+                            )
+                        },
+                        { dao.createPasteData(paste, com.crosspaste.paste.PasteState.LOADED) },
+                    )
+                },
+                decorateOutgoing = { identities.outgoing(it, device) },
             )
         }
         single<PasteSyncProcessManager<Long>> { DefaultPasteSyncProcessManager() }
@@ -267,7 +288,22 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
                     PullFileTaskExecutor(get(), get(), get(), get(), get(), get()),
                     PullIconTaskExecutor(get(), get(), get(), get()),
                     SwitchLanguageTaskExecutor(get(), get()),
-                    SyncPasteTaskExecutor(get(), get(), get(), get(), get(), get(), get(), get()),
+                    SyncPasteTaskExecutor(
+                        get(),
+                        get(),
+                        get(),
+                        get(),
+                        get(),
+                        get(),
+                        get(),
+                        get(),
+                        decorateOutgoing = {
+                            get<ClipboardNativeIdentityStore>().outgoing(
+                                it,
+                                get<AppInfo>().appInstanceId,
+                            )
+                        },
+                    ),
                 ),
                 get(),
             )

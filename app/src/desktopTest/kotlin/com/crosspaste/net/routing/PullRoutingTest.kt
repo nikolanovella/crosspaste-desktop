@@ -2,6 +2,7 @@ package com.crosspaste.net.routing
 
 import com.crosspaste.app.AppControl
 import com.crosspaste.config.TestAppConfig
+import com.crosspaste.paste.ClipboardCaptureIdentity
 import com.crosspaste.paste.PasteCollection
 import com.crosspaste.paste.PasteData
 import com.crosspaste.paste.PasteType
@@ -18,6 +19,21 @@ class PullRoutingTest {
 
     private val json = getJsonUtils().JSON
     private val pasteDataListSerializer = ListSerializer(PasteData.serializer())
+
+    @Test
+    fun `capture decoration stops with the response byte budget`() {
+        val identity = ClipboardCaptureIdentity("origin", 7, "metadata", "content")
+        var calls = 0
+        val batch =
+            listOf(pasteData("first"), pasteData("second"), pasteData("third"))
+                .encodeJsonArrayWithinLimit(2, decorateOutgoing = {
+                    calls++
+                    it.copy(captureIdentity = identity)
+                })
+        assertEquals(1, batch.count)
+        assertEquals(2, calls)
+        assertEquals(identity, json.decodeFromString(pasteDataListSerializer, batch.json).single().captureIdentity)
+    }
 
     @Test
     fun `paste batch limit defaults and stays within protocol bounds`() {

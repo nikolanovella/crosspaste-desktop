@@ -51,6 +51,7 @@ class SyncPasteTaskExecutor(
     private val wsSessionManager: WsSessionManager,
     private val wsSingleFramePayloadLimit: Long = WS_MAX_FRAME_SIZE,
     private val wsChunkedPayloadLimit: Long = WS_MAX_PAYLOAD_SIZE,
+    private val decorateOutgoing: suspend (PasteData) -> PasteData = { it },
 ) : SingleTypeTaskExecutor {
 
     private val logger = KotlinLogging.logger {}
@@ -276,7 +277,7 @@ class SyncPasteTaskExecutor(
         seenAppInstanceIds: Set<String> = emptySet(),
     ): ClientApiResult? =
         runCatching {
-            val jsonBytes = getJsonUtils().JSON.encodeToString(pasteData).encodeToByteArray()
+            val jsonBytes = getJsonUtils().JSON.encodeToString(decorateOutgoing(pasteData)).encodeToByteArray()
             val encrypt = configManager.getCurrentConfig().enableEncryptSync
             val payload =
                 if (encrypt) {

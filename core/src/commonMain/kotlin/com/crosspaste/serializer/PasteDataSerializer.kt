@@ -1,5 +1,6 @@
 package com.crosspaste.serializer
 
+import com.crosspaste.paste.ClipboardCaptureIdentity
 import com.crosspaste.paste.PasteCollection
 import com.crosspaste.paste.PasteData
 import com.crosspaste.paste.PasteState
@@ -26,6 +27,7 @@ class PasteDataSerializer : KSerializer<PasteData> {
             element<String?>("source")
             element<Long>("size")
             element<String>("hash")
+            element<ClipboardCaptureIdentity?>("captureIdentity", isOptional = true)
         }
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -40,6 +42,7 @@ class PasteDataSerializer : KSerializer<PasteData> {
         var source: String? = null
         var size = 0L
         var hash = ""
+        var captureIdentity: ClipboardCaptureIdentity? = null
         loop@ while (true) {
             when (val index = dec.decodeElementIndex(descriptor)) {
                 0 -> id = dec.decodeLongElement(descriptor, index)
@@ -51,6 +54,9 @@ class PasteDataSerializer : KSerializer<PasteData> {
                 6 -> source = dec.decodeNullableSerializableElement(descriptor, index, String.serializer())
                 7 -> size = dec.decodeLongElement(descriptor, index)
                 8 -> hash = dec.decodeStringElement(descriptor, index)
+                9 ->
+                    captureIdentity =
+                        dec.decodeNullableSerializableElement(descriptor, index, ClipboardCaptureIdentity.serializer())
                 else -> break@loop
             }
         }
@@ -68,6 +74,7 @@ class PasteDataSerializer : KSerializer<PasteData> {
             hash = hash,
             createTime = DateUtils.nowEpochMilliseconds(),
             pasteState = PasteState.LOADING,
+            captureIdentity = captureIdentity,
         )
     }
 
@@ -90,6 +97,9 @@ class PasteDataSerializer : KSerializer<PasteData> {
         compositeOutput.encodeNullableSerializableElement(descriptor, 6, String.serializer(), value.source)
         compositeOutput.encodeLongElement(descriptor, 7, value.size)
         compositeOutput.encodeStringElement(descriptor, 8, value.hash)
+        value.captureIdentity?.let {
+            compositeOutput.encodeSerializableElement(descriptor, 9, ClipboardCaptureIdentity.serializer(), it)
+        }
         compositeOutput.endStructure(descriptor)
     }
 }

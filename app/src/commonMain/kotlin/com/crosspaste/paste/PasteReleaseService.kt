@@ -24,6 +24,7 @@ import com.crosspaste.presist.validateFileTransferMetadata
 import com.crosspaste.sync.FilePullService
 import com.crosspaste.sync.PastePullCursorManager
 import com.crosspaste.sync.isSyncEnabledForType
+import com.crosspaste.sync.journal.ClipboardNativeIdentityStore
 import com.crosspaste.task.TaskBuilder
 import com.crosspaste.task.TaskSubmitter
 import com.crosspaste.utils.DateUtils
@@ -86,7 +87,11 @@ class PasteReleaseService(
     private val taskSubmitter: TaskSubmitter,
     private val userDataPathProvider: UserDataPathProvider,
     private val refreshSharedRecordingPolicy: () -> Unit = {},
+    private val createRemoteInline: (suspend (PasteData) -> ClipboardNativeIdentityStore.Received)? = null,
+    private val decorateOutgoing: suspend (PasteData) -> PasteData = { it },
 ) {
+
+    suspend fun outgoingPaste(paste: PasteData): PasteData = decorateOutgoing(paste)
 
     companion object {
         private val fileUtils = getFileUtils()
@@ -684,13 +689,18 @@ class PasteReleaseService(
         historyPull: Boolean,
         tryWritePasteboard: (PasteData) -> Unit,
     ): Long {
-        val id = pasteDao.createPasteData(pasteData, PasteState.LOADED)
+        val created =
+            createRemoteInline?.invoke(pasteData)
+                ?: ClipboardNativeIdentityStore.Received(pasteDao.createPasteData(pasteData, PasteState.LOADED), true)
+        val id = created.id
         pastePullCursorManager.settle(pasteData.appInstanceId, pasteData.id)
-        markDeleteSameHash(id, pasteData.pasteType, pasteData.hash)
-        addRenderingTask(id, pasteData.getType())
+        if (created.created) {
+            markDeleteSameHash(id, pasteData.pasteType, pasteData.hash)
+            addRenderingTask(id, pasteData.getType())
+        }
         if (!historyPull) addRelaySyncTask(id, pasteData.appInstanceId, seenAppInstanceIds)
         // pasteData.id is the sender's id; writing takes the local row as the current paste
-        tryWritePasteboard(pasteData.copy(id = id))
+        tryWritePasteboard(created.paste ?: pasteData.copy(id = id, captureIdentity = null))
         return id
     }
 

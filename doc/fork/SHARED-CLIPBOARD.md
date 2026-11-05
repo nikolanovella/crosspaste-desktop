@@ -292,6 +292,34 @@ reconnection UI verification remains required before installation. Both devices
 must support the new invitation fields; legacy clients do not provide the signed
 consent needed to finish a new-style invitation.
 
+## Live/history convergence: inline content
+
+The optional legacy-wire `captureIdentity` extension identifies the original copy,
+not the relay's local row or arrival timestamp. It carries the original device/ID,
+frozen metadata hash and a domain-separated fingerprint of every inline flavor.
+Favorites and local timestamps are deliberately outside that content comparison.
+The hint is not a signature and grants no membership or original-author trust.
+
+Migration 14 (schema version 15) adds native identity aliases. A live receive and
+signed history projection can reuse one native row in either arrival order, keeping
+local favorites and the existing automatic-clipboard callback. Source capture aliases
+survive outbox consumption, and relays retain the original identity. Different copy
+IDs remain different even when their text is identical. Signed publication verifies
+the original event/payload before adopting a candidate; a forged conflicting hint
+cannot shadow the verified content. Native creation and alias registration commit
+atomically. Wire hints are stripped before the live OS-clipboard callback.
+
+HTTP pushes, native WebSocket sends and legacy history exports use the same decorator.
+History decoration stops at its response byte budget. Unjoined captures avoid content
+hashing; origin lookup uses indexed native-row/outbox queries, not a full journal scan.
+Preparation and receive work run on the background I/O dispatcher.
+
+This stage supports inline text/URL/HTML/RTF/color content only. Any file/image
+representation, including an alternate image attached to text, uses the existing
+file pipeline. Rebinding, availability checks, file-push reuse, alias cleanup/global
+delete replay policy and actual installed Windows/Mac verification remain unfinished.
+No installed app or user preference has been changed for this source work.
+
 ## Required before live use
 
 - Verify admission propagation on the installed Windows/Mac devices. The source
@@ -300,8 +328,11 @@ consent needed to finish a new-style invitation.
   Historical metadata endpoints and private bytes must obey the final policy.
 - Handle originals moved/deleted before an external-file snapshot finishes; expose
   failures clearly and never advertise missing bytes as loaded content.
-- Finish legacy/live protocol coexistence to prevent duplicate native items and
-  accidental OS clipboard selection during historical catch-up.
+- Finish legacy/live coexistence for file/image representations, including rebased
+  paths and availability checks. Inline source convergence is implemented; actual
+  installed live clipboard and reconnection UI still need verification.
+- Complete alias deletion/replay policy and current global clipboard selection;
+  historical catch-up must not arbitrarily overwrite the OS clipboard.
 - Verify the independent recording/paste switches in the installed Windows/Mac UI;
   the source recording bridge is covered by capture and isolated-config tests.
 - Verify remaining cross-platform path/name edge cases in live Windows/Mac flows.

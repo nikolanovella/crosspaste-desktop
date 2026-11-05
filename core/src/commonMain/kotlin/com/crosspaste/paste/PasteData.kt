@@ -43,6 +43,8 @@ data class PasteData(
     val pasteState: Int = PasteState.LOADING,
     @Transient
     val remote: Boolean = false,
+    @Transient
+    val captureIdentity: ClipboardCaptureIdentity? = null,
 ) {
 
     companion object {

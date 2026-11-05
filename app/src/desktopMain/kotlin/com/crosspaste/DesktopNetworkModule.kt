@@ -95,6 +95,7 @@ import com.crosspaste.sync.journal.ClipboardHistoryService
 import com.crosspaste.sync.journal.ClipboardInvitationSender
 import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardMembershipStore
+import com.crosspaste.sync.journal.ClipboardNativeIdentityStore
 import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
@@ -393,7 +394,12 @@ fun desktopNetworkModule(
         single<PairingV3ClientApi> { PairingV3ClientApi(get(), get(), get()) }
         single<PairingV3Transport> { get<PairingV3ClientApi>() }
         single<PasteClient> { PasteClient(get(), get(), get()) }
-        single<PasteClientApi> { PasteClientApi(get(), get()) }
+        single { ClipboardNativeIdentityStore(get()) }
+        single<PasteClientApi> {
+            val identities = get<ClipboardNativeIdentityStore>()
+            val device = get<AppInfo>().appInstanceId
+            PasteClientApi(get(), get(), decorateOutgoing = { identities.outgoing(it, device) })
+        }
         single<PullClientApi> { PullClientApi(get(), get(), get()) }
         single<PushClientApi> { PushClientApi(get(), get(), get()) }
         single<ResourcesClient> { DesktopResourcesClient(get(), get()) }
