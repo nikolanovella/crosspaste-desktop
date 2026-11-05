@@ -8,6 +8,26 @@ import kotlin.test.assertFailsWith
 class FileTransferResourceLimitsTest {
 
     @Test
+    fun `directory only and zero byte metadata remain bounded and require roots`() {
+        val empty = filesItem(mapOf("empty" to DirFileInfoTree(emptyMap(), 0, "folder")))
+        assertEquals(
+            FileTransferMetadataStats(0, 0),
+            validateFileTransferMetadata(listOf(empty), FileTransferValidationLimits()),
+        )
+        val blank = filesItem(mapOf("blank.txt" to SingleFileInfoTree(0, "file")))
+        assertEquals(
+            FileTransferMetadataStats(1, 0),
+            validateFileTransferMetadata(listOf(blank), FileTransferValidationLimits()),
+        )
+        assertFailsWith<IllegalArgumentException> {
+            validateFileTransferMetadata(listOf(filesItem(emptyMap())), FileTransferValidationLimits())
+        }
+        assertFailsWith<IllegalArgumentException> {
+            validateFileTransferMetadata(listOf(empty), FileTransferValidationLimits(maxTreeNodes = 0))
+        }
+    }
+
+    @Test
     fun `valid metadata returns computed totals`() {
         val item =
             filesItem(

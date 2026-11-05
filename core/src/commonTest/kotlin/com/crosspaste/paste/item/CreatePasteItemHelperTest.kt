@@ -6,12 +6,14 @@ import com.crosspaste.paste.item.CreatePasteItemHelper.createHtmlPasteItem
 import com.crosspaste.paste.item.CreatePasteItemHelper.createRtfPasteItem
 import com.crosspaste.paste.item.CreatePasteItemHelper.createTextPasteItem
 import com.crosspaste.paste.item.CreatePasteItemHelper.createUrlPasteItem
+import com.crosspaste.presist.DirFileInfoTree
 import com.crosspaste.presist.SingleFileInfoTree
 import com.crosspaste.utils.getJsonUtils
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -209,6 +211,34 @@ class CreatePasteItemHelperTest {
             )
         assertEquals(50L, item.size)
         assertEquals(1L, item.count)
+    }
+
+    @Test
+    fun `empty folders and zero byte files are usable but missing roots and negative metadata are not`() {
+        val folder =
+            CreatePasteItemHelper.createFilesPasteItem(
+                relativePathList = listOf("empty"),
+                fileInfoTreeMap = mapOf("empty" to DirFileInfoTree(emptyMap(), 0, "folder-hash")),
+            )
+        assertTrue(folder.isValid())
+        assertEquals(0L, folder.count)
+        val file =
+            CreatePasteItemHelper.createFilesPasteItem(
+                relativePathList = listOf("blank.txt"),
+                fileInfoTreeMap = mapOf("blank.txt" to SingleFileInfoTree(0, "file-hash")),
+            )
+        assertTrue(file.isValid())
+        assertFalse(folder.copy(count = -1).isValid())
+        assertFalse(file.copy(size = -1).isValid())
+        assertFalse(folder.copy(fileInfoTreeMap = emptyMap()).isValid())
+        assertFalse(folder.copy(relativePathList = emptyList()).isValid())
+        assertFalse(
+            CreatePasteItemHelper
+                .createImagesPasteItem(
+                    relativePathList = listOf("blank.png"),
+                    fileInfoTreeMap = mapOf("blank.png" to SingleFileInfoTree(0, "file-hash")),
+                ).isValid(),
+        )
     }
 
     // --- ImagesPasteItem ---

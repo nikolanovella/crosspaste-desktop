@@ -246,8 +246,23 @@ journal for each entry. This removes that quadratic scan; it does not establish
 large signed-history performance for the remaining snapshot-based services.
 File/image metadata, including alternate representations of inline content,
 remains pending until all of its bytes can be materialized. The
-shared-history UI, cache/deletion policy and recurring runtime still need wiring;
-the service is registered but is not activated in the installed app.
+source recurring runtime and native Devices setup card are registered. Shared
+cache/deletion lifecycle and installed UI verification remain unfinished; the flow
+is not activated in the installed app.
+
+## Empty files and folders
+
+The signed shared-clipboard path accepts zero-byte files and directory-only
+copies, including nested empty folders. They pass the same original-author
+signature, tree limits, private landing and native-history publication checks as
+nonempty files. Empty directory hashes are rebuilt using their local folder names,
+matching a fresh native capture. Reconnection reuses the existing native row.
+
+The older chunk-session transport cannot finalize a zero-chunk receive. Its
+metadata boundary still rejects zero-byte content before allocating a receive row;
+it does not silently create a permanently loading item. This is a transport
+capability distinction, not a reason to drop empty content from shared history.
+The installed build has not been replaced with this source flow yet.
 
 ## Required before live use
 
@@ -261,11 +276,11 @@ the service is registered but is not activated in the installed app.
   accidental OS clipboard selection during historical catch-up.
 - Verify the independent recording/paste switches in the installed Windows/Mac UI;
   the source recording bridge is covered by capture and isolated-config tests.
-- Finish all-empty-root folder validity and cross-platform path/name edge cases.
+- Verify remaining cross-platform path/name edge cases in live Windows/Mac flows.
 - Verify the actual setup card, live paste/rendering and file flows on Windows/Mac.
 - Reuse authenticated Wi-Fi trust for Bluetooth address exchange and a native setup
   wizard, retaining normal OS pairing and permission consent; test physical transport.
 - Verify real Windows/Mac offline, reconnection, edit and clipboard flows.
 
-The journal is not yet wired into the running application. Existing paired-device
+The new journal flow is not activated in the installed application. Existing paired-device
 sync remains active while this new flow is developed.

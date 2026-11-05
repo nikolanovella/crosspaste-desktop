@@ -34,10 +34,16 @@ internal data class FileTransferMetadataStats(
     val totalSize: Long,
 )
 
-fun validateFileTransferMetadata(pasteData: PasteData) {
+fun validateFileTransferMetadata(
+    pasteData: PasteData,
+    allowZeroByteContent: Boolean = false,
+) {
     val pasteFilesItems = pasteData.getPasteAppearItems().filterIsInstance<PasteFiles>()
     require(pasteFilesItems.isNotEmpty()) { "file paste must contain PasteFiles metadata" }
-    validateFileTransferMetadata(pasteFilesItems, FileTransferValidationLimits())
+    val stats = validateFileTransferMetadata(pasteFilesItems, FileTransferValidationLimits())
+    // Legacy chunk sessions cannot finalize a zero-chunk receive. Only transports
+    // that materialize empty files/directories without chunks may opt into these.
+    require(allowZeroByteContent || stats.totalSize > 0) { "transfer does not support zero-byte content" }
 }
 
 internal fun validateFileTransferMetadata(
@@ -108,6 +114,7 @@ internal fun validateFileTransferMetadata(
     }
 
     pasteFilesItems.forEach { pasteFiles ->
+        require(pasteFiles.fileInfoTreeMap.isNotEmpty()) { "PasteFiles must contain at least one root" }
         // Consumers resolve each relative path's file name against
         // fileInfoTreeMap and silently skip misses
         // (UserDataPathProvider.resolve), so a size check alone lets a
@@ -155,6 +162,6 @@ internal fun validateFileTransferMetadata(
             )
     }
 
-    require(totalFileCount > 0) { "file paste must contain at least one file" }
+    require(nodeCount > 0) { "file paste must contain at least one file or directory" }
     return FileTransferMetadataStats(totalFileCount, totalSize)
 }

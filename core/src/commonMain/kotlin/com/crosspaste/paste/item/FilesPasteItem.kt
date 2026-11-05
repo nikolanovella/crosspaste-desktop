@@ -80,9 +80,9 @@ data class FilesPasteItem(
         )
 
     override fun isValid(): Boolean =
-        count > 0 &&
+        count >= 0 &&
             hash.isNotEmpty() &&
-            size > 0 &&
+            size >= 0 &&
             fileInfoTreeMap.isNotEmpty() &&
             relativePathList.isNotEmpty() &&
             relativePathList.size == fileInfoTreeMap.size

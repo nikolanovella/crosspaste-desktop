@@ -794,8 +794,8 @@ class PasteReleaseService(
                 var createdPasteData: PasteData? = null
                 var renameMapToApply: Map<String, String>? = null
                 runCatching {
-                    pastePullCursorManager.reserve(pasteData.appInstanceId, listOf(pasteData.id))
                     validateFileTransferMetadata(pasteData)
+                    pastePullCursorManager.reserve(pasteData.appInstanceId, listOf(pasteData.id))
                     val existIconFile: Boolean? =
                         pasteData.source?.let {
                             fileUtils.existFile(userDataPathProvider.resolveIconPath(pasteData.appInstanceId, it))

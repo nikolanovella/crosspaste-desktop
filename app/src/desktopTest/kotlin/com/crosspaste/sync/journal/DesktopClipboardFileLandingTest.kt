@@ -6,9 +6,15 @@ import com.crosspaste.paste.PasteState
 import com.crosspaste.paste.item.PasteFiles
 import com.crosspaste.paste.item.PasteItem
 import com.crosspaste.paste.item.resolveBasePath
+import com.crosspaste.presist.DirFileInfoTree
+import com.crosspaste.presist.FileInfoTree
+import com.crosspaste.presist.validateFileTransferMetadata
 import com.crosspaste.test.IntegrationTest
+import com.crosspaste.utils.getFileUtils
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okio.Path.Companion.toPath
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -37,6 +43,83 @@ internal fun capturedLandingPaste(f: ManifestFixture): PasteData {
 
 @IntegrationTest
 class DesktopClipboardFileLandingTest {
+    @Test
+    fun `zero byte files and directory only roots survive signed transfer and native publication`() =
+        runTest {
+            for (directoryOnlyCapture in listOf(false, true)) {
+                val f = fileReceiverFixture(emptyRoots = true, directoryOnly = directoryOnlyCapture)
+                try {
+                    val original = capturedLandingPaste(f.capture)
+                    assertTrue(original.hasValidContent())
+                    assertFailsWith<IllegalArgumentException> { validateFileTransferMetadata(original) }
+                    validateFileTransferMetadata(original, allowZeroByteContent = true)
+                    f.receive(budget = 0)
+                    val landing =
+                        DesktopClipboardFileLanding(
+                            f.root.resolve("landings"),
+                            f.receivedManifests,
+                            f.capture.verifier,
+                            f.receivedBlobs,
+                        )
+                    val rendered = mutableListOf<Long>()
+                    val materializer =
+                        ClipboardHistoryMaterializer(f.localDatabase, f.receivingHistory, "b", {
+                            null
+                        }, { id, _ -> rendered.add(id) }, landing::land)
+                    assertEquals(1, materializer.materialize("shared").created)
+                    val projection =
+                        f.localDatabase.sharedClipboardDatabaseQueries
+                            .getProjection(
+                                "shared",
+                                "a",
+                                1,
+                            ).executeAsOne()
+                    val paste =
+                        f.localDatabase.pasteDatabaseQueries
+                            .getPasteData(
+                                projection.localPasteId,
+                                listOf(PasteState.LOADED.toLong()),
+                                PasteData::mapper,
+                            ).executeAsOne()
+                    assertTrue(paste.hasValidContent())
+                    validateFileTransferMetadata(paste, allowZeroByteContent = true)
+                    val files = paste.pasteAppearItem as PasteFiles
+                    val base = assertNotNull(files.resolveBasePath()).toNioPath()
+                    if (!directoryOnlyCapture) {
+                        assertEquals(0L, Files.size(base.resolve("blank.txt")))
+                    } else {
+                        assertTrue(
+                            f.signed.manifest.nodes
+                                .all { it.blob == null },
+                        )
+                    }
+                    assertTrue(Files.isDirectory(base.resolve("photos/empty")))
+                    val folder = files.fileInfoTreeMap.getValue("photos") as DirFileInfoTree
+                    val directoryOnly =
+                        (paste.pasteAppearItem as com.crosspaste.paste.item.FilesPasteItem).copy(
+                            count = 0,
+                            fileInfoTreeMap = mapOf("photos" to folder),
+                            relativePathList = listOf("photos"),
+                        )
+                    assertTrue(directoryOnly.isValid())
+                    files.fileInfoTreeMap.forEach { (name, tree) ->
+                        assertEquals(
+                            Json.encodeToString<FileInfoTree>(
+                                getFileUtils().getFileInfoTree(base.resolve(name).toString().toPath()),
+                            ),
+                            Json.encodeToString<FileInfoTree>(tree),
+                        )
+                    }
+                    assertEquals(1, materializer.materialize("shared").reused)
+                    assertEquals(listOf(projection.localPasteId), rendered)
+                    assertNotNull(landing.land(f.capture.event, f.capture.metadata, original))
+                    f.assertNoPartialFiles()
+                } finally {
+                    f.cleanup()
+                }
+            }
+        }
+
     @Test
     fun `native history waits for all bytes then resolves primary folder and alternate image to private files`() =
         runTest {

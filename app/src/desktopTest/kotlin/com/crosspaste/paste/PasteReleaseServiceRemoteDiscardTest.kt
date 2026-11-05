@@ -220,14 +220,14 @@ class PasteReleaseServiceRemoteDiscardTest {
 
     /**
      * Passes validateFileTransferMetadata (names match the tree, sizes add up) but a
-     * zero-byte file fails PasteFiles.isValid(), so only the content check rejects it.
+     * missing aggregate hash fails PasteFiles.isValid(), so only the content check rejects it.
      */
     private fun contentInvalidFilePaste(): PasteData {
         val item =
             createFilesPasteItem(
                 relativePathList = listOf("empty.bin"),
-                fileInfoTreeMap = mapOf("empty.bin" to SingleFileInfoTree(0, "empty")),
-            )
+                fileInfoTreeMap = mapOf("empty.bin" to SingleFileInfoTree(1, "file-hash")),
+            ).copy(hash = "")
         return PasteData(
             appInstanceId = "remote-device",
             pasteAppearItem = item,
@@ -281,6 +281,32 @@ class PasteReleaseServiceRemoteDiscardTest {
             assertNull(prepared)
             coVerify(exactly = 0) { pastePullCursorManager.reserve(any(), any()) }
             coVerify(exactly = 0) { pasteDao.createPasteData(any(), any()) }
+        }
+
+    @Test
+    fun `legacy zero chunk receives are rejected without creating or stranding a row`() =
+        runBlocking {
+            val pasteDao = mockk<PasteDao>(relaxed = true)
+            val cursor = mockk<PastePullCursorManager>(relaxed = true)
+            val tasks = immediateSubmitter()
+            val service = newService(pasteDao = pasteDao, pastePullCursorManager = cursor, taskSubmitter = tasks)
+            val item =
+                createFilesPasteItem(
+                    relativePathList = listOf("blank.bin"),
+                    fileInfoTreeMap = mapOf("blank.bin" to SingleFileInfoTree(0, "empty-file-hash")),
+                )
+            val paste = contentInvalidFilePaste().copy(pasteAppearItem = item, hash = item.hash, size = 0)
+            assertTrue(paste.hasValidContent())
+            assertNull(service.releaseRemotePasteDataForPush(paste))
+            coVerify(exactly = 0) { cursor.reserve(any(), any()) }
+            var wrote = false
+            val pulled = service.releaseRemotePasteData(paste) { wrote = true }
+            assertTrue(pulled.isSuccess)
+            assertNull(pulled.getOrThrow())
+            assertTrue(!wrote)
+            coVerify(exactly = 1) { cursor.settle("remote-device", 100L) }
+            coVerify(exactly = 0) { pasteDao.createPasteData(any(), any()) }
+            coVerify(exactly = 0) { tasks.submit(any()) }
         }
 
     @Test

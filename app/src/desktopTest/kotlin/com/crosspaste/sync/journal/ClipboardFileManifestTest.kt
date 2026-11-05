@@ -3,6 +3,7 @@ package com.crosspaste.sync.journal
 import com.crosspaste.paste.PasteCollection
 import com.crosspaste.paste.item.CreatePasteItemHelper.createFilesPasteItem
 import com.crosspaste.paste.item.CreatePasteItemHelper.createImagesPasteItem
+import com.crosspaste.paste.item.FilesPasteItem
 import com.crosspaste.presist.DirFileInfoTree
 import com.crosspaste.presist.SingleFileInfoTree
 import com.crosspaste.utils.getCodecsUtils
@@ -26,7 +27,7 @@ internal data class ManifestFixture(
     val verifier: ClipboardFileManifestVerifier,
 )
 
-internal suspend fun manifestFixture(): ManifestFixture {
+internal suspend fun manifestFixture(filesOverride: FilesPasteItem? = null): ManifestFixture {
     getJsonUtils()
     val peers = clipboardPeerFixture()
     val codecs = getCodecsUtils()
@@ -41,7 +42,7 @@ internal suspend fun manifestFixture(): ManifestFixture {
             codecs.hashByString("folder"),
         )
     val files =
-        createFilesPasteItem(
+        filesOverride ?: createFilesPasteItem(
             relativePathList = listOf("a/1/42/photos"),
             fileInfoTreeMap =
                 mapOf(
@@ -58,10 +59,10 @@ internal suspend fun manifestFixture(): ManifestFixture {
             "a",
             42,
             files.toStoredJson(),
-            PasteCollection(listOf(image)).toStoredJson(),
+            PasteCollection(if (filesOverride == null) listOf(image) else emptyList()).toStoredJson(),
             3,
             null,
-            8,
+            files.size + (if (filesOverride == null) image.size else 0),
             files.hash,
             1,
         )
@@ -95,7 +96,18 @@ internal suspend fun manifestFixture(): ManifestFixture {
                 if (slot.directory) {
                     null
                 } else {
-                    val bytes = (if (slot.name == "thumb.png") "png" else "hello").encodeToByteArray()
+                    val bytes =
+                        (
+                            if (slot.size ==
+                                0L
+                            ) {
+                                ""
+                            } else if (slot.name == "thumb.png") {
+                                "png"
+                            } else {
+                                "hello"
+                            }
+                        ).encodeToByteArray()
                     ClipboardBlob(
                         HexFormat.of().formatHex(
                             CryptographyProvider.Default

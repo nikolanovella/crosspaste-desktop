@@ -11,7 +11,16 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 @Serializable
-enum class ClipboardPeerOperation { IDENTITY, PROPOSE_JOIN, ACCEPT_JOIN, JOIN_STATUS, HISTORY, PAYLOAD, FILE_MANIFEST, FILE_BLOB }
+enum class ClipboardPeerOperation {
+    IDENTITY,
+    PROPOSE_JOIN,
+    ACCEPT_JOIN,
+    JOIN_STATUS,
+    HISTORY,
+    PAYLOAD,
+    FILE_MANIFEST,
+    FILE_BLOB,
+}
 
 @Serializable
 data class ClipboardPeerRequest(

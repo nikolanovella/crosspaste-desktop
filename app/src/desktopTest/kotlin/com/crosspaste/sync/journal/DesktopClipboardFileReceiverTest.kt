@@ -4,13 +4,16 @@ import com.crosspaste.Database
 import com.crosspaste.db.TestDriverFactory
 import com.crosspaste.db.createDatabase
 import com.crosspaste.dto.sync.ControlChallenge
+import com.crosspaste.paste.item.CreatePasteItemHelper.createFilesPasteItem
 import com.crosspaste.secure.SecureKeyPairSerializer
 import com.crosspaste.test.IntegrationTest
 import com.crosspaste.utils.getCodecsUtils
+import com.crosspaste.utils.getFileUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okio.Path.Companion.toPath
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -83,26 +86,50 @@ internal class FileReceiverFixture(
         Files.walk(root).use { paths -> assertTrue(paths.noneMatch { it.toString().endsWith(".part") }) }
     }
 
-    fun cleanup() {
-        require(
-            root.toAbsolutePath().normalize().startsWith(
-                Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize(),
-            ),
-        )
-        require(root.fileName.toString().startsWith("clipboard-file-receiver-test-"))
-        Files.walk(root).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) } }
-    }
+    fun cleanup() = cleanupReceiverRoot(root)
 }
 
-internal suspend fun fileReceiverFixture(): FileReceiverFixture {
-    val capture = manifestFixture()
+private fun cleanupReceiverRoot(root: Path) {
+    require(
+        root.toAbsolutePath().normalize().startsWith(
+            Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize(),
+        ),
+    )
+    require(root.fileName.toString().startsWith("clipboard-file-receiver-test-"))
+    Files.walk(root).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) } }
+}
+
+internal suspend fun fileReceiverFixture(
+    emptyRoots: Boolean = false,
+    directoryOnly: Boolean = false,
+): FileReceiverFixture {
+    require(!directoryOnly || emptyRoots)
     val root = Files.createTempDirectory("clipboard-file-receiver-test-")
-    val fixture = FileReceiverFixture(root, capture)
     try {
         val photos = Files.createDirectory(root.resolve("photos"))
         Files.createDirectory(photos.resolve("empty"))
-        Files.writeString(photos.resolve("café.txt"), "hello")
-        Files.writeString(root.resolve("thumb.png"), "png")
+        if (emptyRoots) {
+            if (!directoryOnly) Files.createFile(root.resolve("blank.txt"))
+        } else {
+            Files.writeString(photos.resolve("café.txt"), "hello")
+            Files.writeString(root.resolve("thumb.png"), "png")
+        }
+        val emptyRootNames = if (directoryOnly) listOf("photos") else listOf("photos", "blank.txt")
+        val capture =
+            manifestFixture(
+                if (emptyRoots) {
+                    createFilesPasteItem(
+                        relativePathList = emptyRootNames,
+                        fileInfoTreeMap =
+                            emptyRootNames.associateWith {
+                                getFileUtils().getFileInfoTree(root.resolve(it).toString().toPath())
+                            },
+                    )
+                } else {
+                    null
+                },
+            )
+        val fixture = FileReceiverFixture(root, capture)
         val sourceBlobs = DesktopClipboardBlobStore(root.resolve("source-blobs"))
         val sourceManifests = DesktopClipboardFileManifestStore(root.resolve("source-manifests"), capture.verifier)
         fixture.signed =
@@ -112,8 +139,15 @@ internal suspend fun fileReceiverFixture(): FileReceiverFixture {
                 capture.verifier,
                 sourceBlobs,
                 sourceManifests,
-            ) { _, item, _ -> if (item == 0) photos else root.resolve("thumb.png") }
-                .snapshot(capture.event, capture.metadata, 8)
+            ) { _, item, rootIndex ->
+                if (emptyRoots) {
+                    root.resolve(emptyRootNames[rootIndex])
+                } else if (item == 0) {
+                    photos
+                } else {
+                    root.resolve("thumb.png")
+                }
+            }.snapshot(capture.event, capture.metadata, 8)
         val db = createDatabase(TestDriverFactory())
         val serializer = SecureKeyPairSerializer()
         fixture.localDatabase = createDatabase(TestDriverFactory())
@@ -147,7 +181,7 @@ internal suspend fun fileReceiverFixture(): FileReceiverFixture {
             ) { blob, offset, limit -> sourceBlobs.readChunk(blob.sha256, offset, limit) }
         return fixture
     } catch (error: Throwable) {
-        fixture.cleanup()
+        cleanupReceiverRoot(root)
         throw error
     }
 }

@@ -174,15 +174,17 @@ internal class DesktopClipboardFileLanding(
                         DirFileInfoTree(
                             entries,
                             node.slot.size,
-                            getCodecsUtils()
-                                .hashByArray(
+                            if (entries.isEmpty()) {
+                                getCodecsUtils().hashByString(names.getValue(node.slot.id))
+                            } else {
+                                getCodecsUtils().hashByArray(
                                     entries
                                         .toSortedMap()
                                         .values
-                                        .map {
-                                            it.hash
-                                        }.toTypedArray(),
-                                ),
+                                        .map { it.hash }
+                                        .toTypedArray(),
+                                )
+                            },
                         )
                     }
                 val items = listOf(requireNotNull(paste.pasteAppearItem)) + paste.pasteCollection.pasteItems
