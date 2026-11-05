@@ -54,16 +54,19 @@ internal class DesktopClipboardReplicaRuntime(
         val event: ClipboardEventId,
     )
 
-    private data class FileWork(
+    private class FileWork(
         val key: FileKey,
         val signed: SignedClipboardChange,
         val metadata: ByteArray,
         val peers: List<String>,
-    )
+    ) {
+        var claimed = false
+        var prioritized = false
+    }
 
     private val tickMutex = Mutex()
     private val pendingMutex = Mutex()
-    private val pending = mutableSetOf<FileKey>()
+    private val pending = mutableMapOf<FileKey, FileWork>()
     private val selectedFiles = Channel<FileWork>(1)
     private val files = Channel<FileWork>(64)
     private val offsets = mutableMapOf<String, Int>()
@@ -121,6 +124,13 @@ internal class DesktopClipboardReplicaRuntime(
     }
 
     private suspend fun process(work: FileWork) {
+        val claimed =
+            pendingMutex.withLock {
+                if (work.claimed) return@withLock false
+                work.claimed = true
+                true
+            }
+        if (!claimed) return
         try {
             if (database.sharedClipboardDatabaseQueries
                     .getWorkspace(
@@ -259,21 +269,25 @@ internal class DesktopClipboardReplicaRuntime(
                         if (items.none { it is PasteFiles }) continue
                         val key = FileKey(clipboard, change.id)
                         pendingMutex.withLock {
-                            if (pending.add(key)) {
-                                val queue = if (change.id == selectedTarget) selectedFiles else files
-                                if (queue
-                                        .trySend(
-                                            FileWork(
-                                                key,
-                                                byId.getValue(change.id),
-                                                bytes,
-                                                online.sortedBy { it != change.id.device },
-                                            ),
-                                        ).isSuccess
-                                ) {
+                            val existing = pending[key]
+                            val selected = change.id == selectedTarget
+                            if (existing != null) {
+                                if (selected && !existing.claimed && !existing.prioritized) {
+                                    existing.prioritized = selectedFiles.trySend(existing).isSuccess
+                                }
+                            } else {
+                                val work =
+                                    FileWork(
+                                        key,
+                                        byId.getValue(change.id),
+                                        bytes,
+                                        online.sortedBy { it != change.id.device },
+                                    )
+                                val queue = if (selected) selectedFiles else files
+                                if (queue.trySend(work).isSuccess) {
+                                    work.prioritized = selected
+                                    pending[key] = work
                                     queued++
-                                } else {
-                                    pending.remove(key)
                                 }
                             }
                         }

@@ -40,7 +40,6 @@ class DesktopClipboardReplicaRuntimeTest {
                 val keys = f.capture.peers.aStore.secureKeyPair.signKeyPair
                 val selection = ClipboardSelection("shared", "a", 1, f.capture.event.change.id)
                 val authenticator = ClipboardSelectionAuthenticator("shared") { keys.publicKey }
-                f.receivingHistory.selectionStore("shared").ingest(listOf(authenticator.sign(selection, keys.privateKey)))
                 val applied = mutableListOf<Long>()
                 val pulled = mutableListOf<String>()
                 val runtime =
@@ -69,6 +68,9 @@ class DesktopClipboardReplicaRuntimeTest {
                 assertEquals(1, first.queuedFiles)
                 assertEquals(0, first.created)
                 assertEquals(1, first.failures)
+                f.receivingHistory
+                    .selectionStore("shared")
+                    .ingest(listOf(authenticator.sign(selection, keys.privateKey)))
                 assertEquals(0, runtime.tick().queuedFiles)
                 assertEquals(listOf("a", "a"), pulled)
                 assertEquals(0, f.requests) // Tick did not wait for file transfer.
@@ -78,6 +80,9 @@ class DesktopClipboardReplicaRuntimeTest {
                         .getProjection("shared", "a", 1)
                         .executeAsOneOrNull(),
                 )
+                val transferRequests = f.requests
+                assertTrue(runtime.processNextFile()) // Original history slot is discarded without another transfer.
+                assertEquals(transferRequests, f.requests)
                 assertFalse(runtime.processNextFile())
                 assertEquals(0, runtime.tick().queuedFiles)
                 assertEquals(1, applied.size)
