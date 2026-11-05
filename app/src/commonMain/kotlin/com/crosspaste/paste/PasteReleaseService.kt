@@ -753,6 +753,9 @@ class PasteReleaseService(
         return releaseLast(pasteDataList.last())
     }
 
+    internal fun isProjectedBySelectionPeer(pasteId: Long): Boolean =
+        database.sharedClipboardDatabaseQueries.isProjectedBySelectionPeer(pasteId).executeAsOne()
+
     suspend fun releaseRemotePasteDataWithFile(
         id: Long,
         seenAppInstanceIds: Set<String> = emptySet(),

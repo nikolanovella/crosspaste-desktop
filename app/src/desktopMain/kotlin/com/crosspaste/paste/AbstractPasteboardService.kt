@@ -117,6 +117,9 @@ abstract class AbstractPasteboardService :
     private fun enqueueRemotePaste(storePasteData: PasteData) {
         remotePasteboardChannel
             .trySend {
+                if (pasteReleaseService.isProjectedBySelectionPeer(storePasteData.id)) {
+                    return@trySend Result.success(null)
+                }
                 tryWritePasteboard(
                     pasteData = storePasteData,
                     localOnly = true,
@@ -167,22 +170,7 @@ abstract class AbstractPasteboardService :
         historyPull: Boolean,
     ): Result<Unit?> =
         pasteReleaseService.releaseRemotePasteDataWithFile(pasteId, seenAppInstanceIds, historyPull) { storePasteData ->
-            if (writeToPasteboard) {
-                remotePasteboardChannel
-                    .trySend {
-                        tryWritePasteboard(
-                            pasteData = storePasteData,
-                            localOnly = true,
-                        ).onFailure {
-                            notificationManager.sendNotification(
-                                title = { copyWriter -> copyWriter.getText("copy_failed") },
-                                messageType = MessageType.Error,
-                            )
-                        }
-                    }.onFailure { e ->
-                        logger.error(e) { "Failed to send remote pasteboard task to channel" }
-                    }
-            }
+            if (writeToPasteboard) enqueueRemotePaste(storePasteData)
         }
 
     @Synchronized

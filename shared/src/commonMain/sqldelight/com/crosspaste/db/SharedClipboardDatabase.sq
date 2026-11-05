@@ -76,6 +76,8 @@ CREATE TABLE SharedClipboardProjectionEntity (
     PRIMARY KEY (clipboardId, eventDevice, eventSequence)
 );
 
+CREATE INDEX SharedClipboardProjectionPaste ON SharedClipboardProjectionEntity (localPasteId);
+
 CREATE TABLE SharedClipboardAdmissionEntity (
     clipboardId TEXT NOT NULL,
     deviceId TEXT NOT NULL,
@@ -254,3 +256,15 @@ SELECT signedSelection FROM SharedClipboardSelectionEntity
 WHERE clipboardId = ?
 ORDER BY selectionClock DESC, author DESC
 LIMIT 1;
+
+isProjectedBySelectionPeer:
+SELECT EXISTS(
+    SELECT 1
+    FROM SharedClipboardProjectionEntity AS projection
+    JOIN SharedClipboardWorkspaceEntity AS workspace ON workspace.clipboardId = projection.clipboardId
+    WHERE projection.localPasteId = :pasteId AND workspace.enabled = 1
+    AND EXISTS(
+        SELECT 1 FROM SharedClipboardSelectionEntity AS selection
+        WHERE selection.clipboardId = projection.clipboardId AND selection.author = projection.eventDevice
+    )
+);

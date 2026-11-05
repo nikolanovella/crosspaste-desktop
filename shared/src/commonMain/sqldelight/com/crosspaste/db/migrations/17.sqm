@@ -1,0 +1,1 @@
+CREATE INDEX SharedClipboardProjectionPaste ON SharedClipboardProjectionEntity (localPasteId);

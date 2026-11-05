@@ -343,7 +343,7 @@ class ClipboardAdmissionStoreTest {
             )
             val oldId = db.pasteDatabaseQueries.getLastId().executeAsOne()
             driver.execute(null, "DROP TABLE SharedClipboardAdmissionEntity", 0)
-            assertEquals(17L, Database.Schema.version)
+            assertEquals(18L, Database.Schema.version)
             Database.Schema.migrate(driver, 13, 14)
             val oldPaste = db.pasteDatabaseQueries.getPasteData(oldId, listOf(1L)).executeAsOne()
             assertEquals("saved-collection", oldPaste.pasteCollection)
