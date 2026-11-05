@@ -134,6 +134,20 @@ continue exchanging history. The worker applies a remote selection only after
 its verified target becomes a locally materialized item and the independent
 paste setting permits it. Live Windows–Mac verification is pending.
 
+### Interoperation with legacy clipboard writes
+
+The desktop writer skips a legacy clipboard write if its native row is already
+projected into an enabled workspace and the projection's author has a verified
+selection record there. The history row remains available. A legacy payload can
+still reach the writer before its signed event is projected.
+
+The WebSocket handshake capability hints are outside its authentication code.
+A future early-write guard needs proof from an authenticated selection exchange
+or an authenticated payload marker tied to a workspace and capture. A handshake
+hint alone cannot disable an existing peer's clipboard writes. A marker should
+only be emitted when the sender has committed the corresponding selection, so
+a receiver can defer the legacy write without losing the copied item.
+
 ## Missing-history catch-up
 
 `ClipboardHistoryService` serves bounded missing-event batches only to explicitly

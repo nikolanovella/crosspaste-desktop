@@ -512,6 +512,7 @@ class ClipboardHistoryServiceTest {
             val (hash, bytes) = preparePayload(f, "selected clipboard text", pullHistory = false)
             val snapshot = SqlSignedClipboardStore(f.bDb, "shared").load()
             val event = snapshot.changes.single().change
+            val (otherHash, otherBytes) = preparePayload(f, "newer history item", sourceId = 43, pullHistory = false)
             val keys = f.peers.bStore.secureKeyPair.signKeyPair
             val authenticator = ClipboardSelectionAuthenticator("shared") { keys.publicKey }
             val selection = ClipboardSelection("shared", "b", 1, event.id)
@@ -522,11 +523,12 @@ class ClipboardHistoryServiceTest {
             val restarted = ClipboardHistoryService(f.aDb, "a", f.peers.aStore, SecureKeyPairSerializer())
             assertEquals(selection, restarted.selectionStore("shared").latest()?.selection)
             assertEquals(null, restarted.selectedPaste("shared", emptyList()))
-            assertEquals(1, puller.pull("shared", "b"))
+            assertEquals(2, puller.pull("shared", "b"))
             assertEquals(null, restarted.selectedPaste("shared", listOf(event)))
+            restarted.storePayload("shared", otherHash, otherBytes)
             restarted.storePayload("shared", hash, bytes)
             val materializer = ClipboardHistoryMaterializer(f.aDb, restarted, "a", { null }, { _, _ -> })
-            assertEquals(1, materializer.materialize("shared").created)
+            assertEquals(1, materializer.materialize("shared", limit = 1).created)
             assertEquals(selection, restarted.selectedPaste("shared", listOf(event))?.first)
             puller.syncSelection("shared", "b")
             assertEquals(1, restarted.selectionStore("shared").load().size)

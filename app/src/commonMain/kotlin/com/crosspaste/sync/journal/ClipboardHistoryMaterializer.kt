@@ -52,12 +52,20 @@ class ClipboardHistoryMaterializer(
                     localDevice,
                     ClipboardJournalSnapshot(clipboard, snapshot.changes.map { it.change }),
                 ) {}
+            val selectedTarget =
+                history
+                    .selectionStore(clipboard)
+                    .latest()
+                    ?.selection
+                    ?.target
             val heads =
                 projection
                     .allHeads()
                     .filterNot { it.deleted }
                     .sortedWith(
-                        compareByDescending<ClipboardChange> { it.clock }.thenBy { it.id.device },
+                        compareByDescending<ClipboardChange> { it.id == selectedTarget }
+                            .thenByDescending { it.clock }
+                            .thenBy { it.id.device },
                     )
             val queries = database.sharedClipboardDatabaseQueries
             val missing = mutableSetOf<String>()

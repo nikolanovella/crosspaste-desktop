@@ -205,8 +205,16 @@ internal class DesktopClipboardReplicaRuntime(
                             .filterNot { it.deleted }
                             .sortedWith(compareBy({ it.id.device }, { it.id.sequence }))
                     val offset = if (heads.isEmpty()) 0 else (offsets[clipboard] ?: 0) % heads.size
-                    val batch = (heads.drop(offset) + heads.take(offset)).take(limit)
-                    offsets[clipboard] = if (heads.isEmpty()) 0 else (offset + batch.size) % heads.size
+                    val historyBatch = (heads.drop(offset) + heads.take(offset)).take(limit)
+                    val selectedTarget =
+                        history
+                            .selectionStore(clipboard)
+                            .latest()
+                            ?.selection
+                            ?.target
+                    val selectedHead = heads.firstOrNull { it.id == selectedTarget }
+                    val batch = listOfNotNull(selectedHead) + historyBatch.filter { it.id != selectedTarget }
+                    offsets[clipboard] = if (heads.isEmpty()) 0 else (offset + historyBatch.size) % heads.size
                     for (change in batch) {
                         if (queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled != true) break
                         if (queries
