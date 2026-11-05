@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -63,6 +64,7 @@ internal class DesktopClipboardReplicaRuntime(
     private val tickMutex = Mutex()
     private val pendingMutex = Mutex()
     private val pending = mutableSetOf<FileKey>()
+    private val selectedFiles = Channel<FileWork>(1)
     private val files = Channel<FileWork>(64)
     private val offsets = mutableMapOf<String, Int>()
     private val appliedSelections = mutableMapOf<String, ClipboardSelection>()
@@ -81,7 +83,11 @@ internal class DesktopClipboardReplicaRuntime(
                     repeat(2) {
                         launch {
                             while (isActive) {
-                                val work = files.receive()
+                                val work =
+                                    select {
+                                        selectedFiles.onReceive { it }
+                                        files.onReceive { it }
+                                    }
                                 process(work)
                             }
                         }
@@ -109,7 +115,7 @@ internal class DesktopClipboardReplicaRuntime(
 
     /** Also used by deterministic integration checks without launching background threads. */
     suspend fun processNextFile(): Boolean {
-        val work = files.tryReceive().getOrNull() ?: return false
+        val work = selectedFiles.tryReceive().getOrNull() ?: files.tryReceive().getOrNull() ?: return false
         process(work)
         return true
     }
@@ -254,7 +260,8 @@ internal class DesktopClipboardReplicaRuntime(
                         val key = FileKey(clipboard, change.id)
                         pendingMutex.withLock {
                             if (pending.add(key)) {
-                                if (files
+                                val queue = if (change.id == selectedTarget) selectedFiles else files
+                                if (queue
                                         .trySend(
                                             FileWork(
                                                 key,

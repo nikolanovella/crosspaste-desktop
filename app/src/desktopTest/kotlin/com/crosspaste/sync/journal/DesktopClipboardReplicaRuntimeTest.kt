@@ -37,6 +37,11 @@ class DesktopClipboardReplicaRuntimeTest {
             val f = fileReceiverFixture()
             try {
                 val materializer = native(f)
+                val keys = f.capture.peers.aStore.secureKeyPair.signKeyPair
+                val selection = ClipboardSelection("shared", "a", 1, f.capture.event.change.id)
+                val authenticator = ClipboardSelectionAuthenticator("shared") { keys.publicKey }
+                f.receivingHistory.selectionStore("shared").ingest(listOf(authenticator.sign(selection, keys.privateKey)))
+                val applied = mutableListOf<Long>()
                 val pulled = mutableListOf<String>()
                 val runtime =
                     DesktopClipboardReplicaRuntime(
@@ -55,6 +60,10 @@ class DesktopClipboardReplicaRuntimeTest {
                             f.receiver().receive(peer, event, bytes, manifestBudget, budget)
                         },
                         materialize = materializer::materialize,
+                        applySelection = { paste ->
+                            applied.add(paste.id)
+                            true
+                        },
                     )
                 val first = runtime.tick()
                 assertEquals(1, first.queuedFiles)
@@ -71,6 +80,9 @@ class DesktopClipboardReplicaRuntimeTest {
                 )
                 assertFalse(runtime.processNextFile())
                 assertEquals(0, runtime.tick().queuedFiles)
+                assertEquals(1, applied.size)
+                runtime.tick()
+                assertEquals(1, applied.size)
                 assertEquals(0L, runtime.fileFailures.value)
                 f.assertNoPartialFiles()
             } finally {
