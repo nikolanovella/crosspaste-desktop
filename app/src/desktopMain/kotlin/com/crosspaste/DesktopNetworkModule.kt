@@ -98,6 +98,7 @@ import com.crosspaste.sync.journal.ClipboardMembershipStore
 import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
+import com.crosspaste.sync.journal.ClipboardSetupController
 import com.crosspaste.sync.journal.DesktopClipboardBlobStore
 import com.crosspaste.sync.journal.DesktopClipboardFileLanding
 import com.crosspaste.sync.journal.DesktopClipboardFileManifestStore
@@ -144,6 +145,17 @@ fun desktopNetworkModule(
             )
         }
         single { ClipboardInvitationSender(get(), get()) }
+        single {
+            val config = get<DesktopConfigManager>()
+            ClipboardSetupController(
+                get(),
+                get<AppInfo>().appInstanceId,
+                get(),
+                get(),
+                get(),
+                recording = { config.getCurrentConfig().enablePasteboardListening },
+            )
+        }
         single { ClipboardHistoryService(get(), get<AppInfo>().appInstanceId, get(), get()) }
         single { ClipboardMembershipStore(get(), get()) }
         single { ClipboardFileManifestVerifier(get<ClipboardMembershipStore>()::signingKey) }

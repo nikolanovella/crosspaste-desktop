@@ -102,6 +102,9 @@ SELECT * FROM SharedClipboardWorkspaceEntity WHERE clipboardId = ?;
 getEnabledWorkspaces:
 SELECT * FROM SharedClipboardWorkspaceEntity WHERE enabled = 1 ORDER BY clipboardId;
 
+getWorkspaces:
+SELECT * FROM SharedClipboardWorkspaceEntity ORDER BY clipboardId;
+
 getCapture:
 SELECT * FROM SharedClipboardCaptureEntity WHERE clipboardId = ? AND localPasteId = ?;
 

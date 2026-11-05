@@ -29,6 +29,7 @@ import com.crosspaste.platform.Platform
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.journal.ClipboardInvitationsCard
+import com.crosspaste.sync.journal.ClipboardSetupCard
 import com.crosspaste.transport.bluetooth.BluetoothDevicesCard
 import com.crosspaste.ui.base.ShareContentView
 import com.crosspaste.ui.devices.DesktopPromoteGuide
@@ -312,6 +313,7 @@ class DesktopScreenProvider(
             guideContent = { DesktopPromoteGuide() },
             transportContent = {
                 Column {
+                    ClipboardSetupCard()
                     ClipboardInvitationsCard()
                     BluetoothDevicesCard()
                 }

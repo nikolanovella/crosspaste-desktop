@@ -10,9 +10,11 @@ class ClipboardInvitationSender(
     suspend fun send(
         clipboard: String,
         peer: String,
+        prepared: (ClipboardInvitation) -> Unit = {},
     ): ClipboardInvitation {
         val identity = client.identity(peer, clipboard)
         val offer = invitations.prepare(clipboard, identity)
+        prepared(offer)
         val reply = client.propose(offer)
         val status = Json.decodeFromString<ClipboardInvitationStatus>(reply.payload)
         require(status.id == offer.id && status.clipboard == offer.clipboard) {

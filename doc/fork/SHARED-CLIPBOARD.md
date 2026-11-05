@@ -105,9 +105,15 @@ uses the existing encrypted client and peer route resolver, including registered
 Bluetooth routes. `ClipboardInvitationSender` prepares and sends offers, then
 confirms their status without granting remote consent. Both are registered in
 desktop DI; the encrypted HTTP test exercises the complete sending and receiving
-service flow. Sending controls are not connected yet, and the running app has not
-been updated with this experimental UI. Membership propagation to additional
-existing members also remains to be implemented.
+service flow. The source Devices page now includes a setup card using the existing
+theme, section cards and buttons. Explicit setup creates one local clipboard;
+Connect sends an offer to a paired device and displays pending/accepted/expired
+status. A prepared offer is retained before transmission so a lost acknowledgement
+can still be resolved through its authenticated status. Refresh alone creates no
+clipboard or membership. Existing copy/paste preferences are used, and resuming
+paused history preserves its stored contribution choice. The running app has not
+been updated with this experimental UI; real visual/Windows-Mac setup verification
+and propagation to additional existing members remain unfinished.
 
 ## Missing-history catch-up
 
@@ -196,7 +202,7 @@ items instead of leaving every file pending. Items still wait when bytes are
 missing. A fresh frontier check inside the SQL publication transaction prevents
 an item deleted during file preparation from becoming a new loaded row. File
 placement and native history services remain source-only; recurring runtime
-setup and the complete global cache/deletion policy are unfinished.
+setup verification and the complete global cache/deletion policy are unfinished.
 
 ## Replica background runtime
 
@@ -216,7 +222,7 @@ The existing recording/paste switches remain independent. No workspace is create
 or enabled automatically during startup.
 
 This is not yet installed. Before enabling the full product flow, finish native
-setup/membership propagation, shared deletion/cache policy and coexistence with
+setup verification/membership propagation, shared deletion/cache policy and coexistence with
 legacy live sync so a copy cannot appear twice through the two protocols.
 
 ## Native history projection
@@ -239,23 +245,20 @@ the service is registered but is not activated in the installed app.
 
 ## Required before live use
 
-- Complete approved-membership propagation and lifecycle integration. The
-  invitation and history services now use the SQL resolver, but newly admitted
-  identities still need verified propagation to the other existing replicas.
-- Wire the capture consumer into the app lifecycle after payload retention and
-  approved membership are ready; finish edits/deletions and incoming materialization.
-- Finish immutable snapshots of external/indirect file references and safe global
-  reference release before enabling capture in the product. Managed owned-file
-  retention is in source, but metadata alone does not protect external files.
-- Finish immutable image/file blob transfer separately from the implemented
-  captured-metadata transfer, and connect both to incoming materialization.
-- Drain missing batches across reconnects, including Bluetooth transport.
-- Separate historical catch-up from the live OS clipboard selection.
-- Preserve independent contribute/use settings: received history can remain
-  available while automatic clipboard replacement is off.
-- Finish outgoing invitation/setup/status controls in the existing themed UI. Reuse existing
-  Wi-Fi trust for Bluetooth address exchange, while retaining normal OS pairing
-  and permission consent.
+- Propagate verified new-member admission to the other existing replicas; do not
+  enroll public keys supplied only by received clipboard events.
+- Complete shared edits/deletions, local cache release and retention cleanup UI.
+  Historical metadata endpoints and private bytes must obey the final policy.
+- Handle originals moved/deleted before an external-file snapshot finishes; expose
+  failures clearly and never advertise missing bytes as loaded content.
+- Finish legacy/live protocol coexistence to prevent duplicate native items and
+  accidental OS clipboard selection during historical catch-up.
+- Bridge later recording-switch changes to the stored contribution choice while
+  keeping the independent automatic-paste preference unchanged.
+- Finish all-empty-root folder validity and cross-platform path/name edge cases.
+- Verify the actual setup card, live paste/rendering and file flows on Windows/Mac.
+- Reuse authenticated Wi-Fi trust for Bluetooth address exchange and a native setup
+  wizard, retaining normal OS pairing and permission consent; test physical transport.
 - Verify real Windows/Mac offline, reconnection, edit and clipboard flows.
 
 The journal is not yet wired into the running application. Existing paired-device
