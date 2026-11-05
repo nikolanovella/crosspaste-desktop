@@ -31,6 +31,7 @@ internal class DesktopClipboardFileSnapshotter(
     private val secureStore: SecureStore,
     private val verifier: ClipboardFileManifestVerifier,
     private val blobs: DesktopClipboardBlobStore,
+    private val manifests: DesktopClipboardFileManifestStore? = null,
     private val rootSource: (CapturedClipboardPayload, Int, Int) -> Path,
 ) {
     suspend fun snapshot(
@@ -54,6 +55,14 @@ internal class DesktopClipboardFileSnapshotter(
             verified.slots.filterNot { it.directory }.forEach {
                 require(it.size <= maximumBytes - total) { "Captured files exceed the configured snapshot budget" }
                 total += it.size
+            }
+            manifests?.load(event, metadata)?.let { cached ->
+                if (cached.manifest.nodes
+                        .mapNotNull { it.blob }
+                        .all { blobs.has(it) }
+                ) {
+                    return@withContext cached
+                }
             }
             val paths = mutableMapOf<Int, Path>()
             val roots = mutableMapOf<Pair<Int, Int>, Path>()
@@ -85,16 +94,18 @@ internal class DesktopClipboardFileSnapshotter(
                     }
                 nodes.add(ClipboardFileNode(slot, blob))
             }
-            verifier.sign(
-                ClipboardFileManifest(
-                    event.change.clipboard,
-                    event.change.id,
-                    requireNotNull(event.change.contentHash),
-                    nodes,
-                ),
-                event,
-                metadata,
-                secureStore.secureKeyPair.signKeyPair.privateKey,
-            )
+            val signed =
+                verifier.sign(
+                    ClipboardFileManifest(
+                        event.change.clipboard,
+                        event.change.id,
+                        requireNotNull(event.change.contentHash),
+                        nodes,
+                    ),
+                    event,
+                    metadata,
+                    secureStore.secureKeyPair.signKeyPair.privateKey,
+                )
+            manifests?.save(signed, event, metadata) ?: signed
         }
 }

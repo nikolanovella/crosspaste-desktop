@@ -93,6 +93,7 @@ import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
 import com.crosspaste.sync.journal.DesktopClipboardBlobStore
+import com.crosspaste.sync.journal.DesktopClipboardFileManifestStore
 import com.crosspaste.sync.journal.DesktopClipboardFileSnapshotter
 import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
@@ -154,9 +155,21 @@ fun desktopNetworkModule(
         single { ClipboardPayloadTransfer(get()) }
         single {
             val paths = get<UserDataPathProvider>()
-            DesktopClipboardFileSnapshotter(get<AppInfo>().appInstanceId, get(), get(), get()) { capture, item, root ->
+            DesktopClipboardFileSnapshotter(
+                get<AppInfo>().appInstanceId,
+                get(),
+                get(),
+                get(),
+                get(),
+            ) { capture, item, root ->
                 capturedClipboardFileRoot(capture, item, root, paths)
             }
+        }
+        single {
+            DesktopClipboardFileManifestStore(
+                get<AppPathProvider>().pasteUserPath.resolve("shared-clipboard-manifests").toNioPath(),
+                get(),
+            )
         }
         single {
             DesktopClipboardBlobStore(

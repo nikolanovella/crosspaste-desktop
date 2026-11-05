@@ -156,8 +156,16 @@ resolving any local source path, then verifies captured sizes and hashes while
 copying bytes into private storage. Caller budgets are checked before file lookup.
 Logical remote names are metadata, not trusted destination filesystem paths.
 
-These services are source-only. Durable manifest storage, authorized network blob
-retrieval, safe destination landing and runtime activation remain unfinished.
+The private desktop manifest store persists the original signature using a flushed
+temporary file and atomic publication. Records are keyed by clipboard, origin event
+and metadata hash, and revalidated against current approved membership on load.
+An existing committed manifest cannot be replaced by a conflicting valid manifest.
+Snapshots reuse a saved manifest only when every referenced private blob still
+verifies; moving or editing the original then does not change the copied content.
+Caller byte budgets still apply before cached content can be used.
+
+These services are source-only. Authorized network blob retrieval, safe destination
+landing and runtime activation remain unfinished.
 
 ## Native history projection
 
