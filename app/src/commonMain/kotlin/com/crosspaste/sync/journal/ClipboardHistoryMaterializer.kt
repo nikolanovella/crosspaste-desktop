@@ -4,6 +4,7 @@ import com.crosspaste.Database
 import com.crosspaste.paste.PasteCollection
 import com.crosspaste.paste.PasteData
 import com.crosspaste.paste.PasteState
+import com.crosspaste.paste.item.PasteFiles
 import com.crosspaste.paste.item.PasteItem
 import com.crosspaste.utils.getCodecsUtils
 import dev.whyoleg.cryptography.CryptographyProvider
@@ -118,7 +119,7 @@ class ClipboardHistoryMaterializer(
                         remote = capture.originDevice != localDevice,
                     )
                 require(paste.hasValidContent()) { "Stored clipboard content is invalid" }
-                if (paste.isFileType()) {
+                if (paste.getPasteAppearItems().any { it is PasteFiles }) {
                     files.add(hash)
                     continue
                 }

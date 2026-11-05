@@ -8,6 +8,8 @@ import com.crosspaste.paste.PasteCollection
 import com.crosspaste.paste.PasteData
 import com.crosspaste.paste.PasteState
 import com.crosspaste.paste.item.CreatePasteItemHelper.createFilesPasteItem
+import com.crosspaste.paste.item.CreatePasteItemHelper.createHtmlPasteItem
+import com.crosspaste.paste.item.CreatePasteItemHelper.createImagesPasteItem
 import com.crosspaste.paste.item.CreatePasteItemHelper.createTextPasteItem
 import com.crosspaste.paste.item.PasteText
 import com.crosspaste.presist.SingleFileInfoTree
@@ -118,6 +120,49 @@ private suspend fun journal(
 }
 
 class ClipboardHistoryServiceTest {
+    @Test
+    fun `inline primary content waits when an alternate image representation still needs bytes`() =
+        runTest {
+            val f = historyFixture()
+            getJsonUtils()
+            val html = createHtmlPasteItem(html = "<p>image alternative</p>")
+            val image =
+                createImagesPasteItem(
+                    relativePathList = listOf("b/1/42/image.png"),
+                    fileInfoTreeMap =
+                        mapOf(
+                            "image.png" to SingleFileInfoTree(5, getCodecsUtils().hashByString("image")),
+                        ),
+                )
+            val payload =
+                CapturedClipboardPayload(
+                    "b",
+                    42,
+                    html.toStoredJson(),
+                    PasteCollection(listOf(image)).toStoredJson(),
+                    2,
+                    null,
+                    html.size + image.size,
+                    html.hash,
+                    1,
+                )
+            val bytes = Json.encodeToString(payload).encodeToByteArray()
+            val hash =
+                "sha256:" +
+                    getCodecsUtils().base64Encode(
+                        CryptographyProvider.Default
+                            .get(SHA256)
+                            .hasher()
+                            .hash(bytes),
+                    )
+            journal(f.bDb, "b", f.peers.bStore).append(Json.encodeToString(listOf("capture/v1", "b", "42")), hash)
+            ClipboardHistoryPuller(f.client(true), f.a).pull("shared", "b")
+            f.a.storePayload("shared", hash, bytes)
+            val materializer = ClipboardHistoryMaterializer(f.aDb, f.a, "a", { null }, { _, _ -> error("Not ready") })
+            assertEquals(setOf(hash), materializer.materialize("shared").awaitingFilePayloads)
+            assertTrue(rows(f).isEmpty())
+        }
+
     private suspend fun preparePayload(
         f: HistoryFixture,
         text: String,

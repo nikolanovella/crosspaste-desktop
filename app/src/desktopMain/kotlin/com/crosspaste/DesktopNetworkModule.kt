@@ -89,6 +89,7 @@ import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
+import com.crosspaste.sync.journal.DesktopClipboardBlobStore
 import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
 import com.crosspaste.task.TaskSubmitter
@@ -144,6 +145,11 @@ fun desktopNetworkModule(
             )
         }
         single { ClipboardPayloadTransfer(get()) }
+        single {
+            DesktopClipboardBlobStore(
+                get<AppPathProvider>().pasteUserPath.resolve("shared-clipboard-blobs").toNioPath(),
+            )
+        }
         single {
             DesktopClipboardPayloadReceiver(
                 get(),

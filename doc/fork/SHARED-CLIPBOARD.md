@@ -134,6 +134,17 @@ success, interruption or rejection. Unicode spanning chunk boundaries is covered
 by byte-level assembly. This transfers captured metadata, including inline text;
 it does not yet transfer the image/file bytes referenced by that metadata.
 
+`DesktopClipboardBlobStore` provides the private storage primitive for those
+bytes. It streams regular files into staging, checks the captured size and
+legacy content hash, computes SHA-256, then publishes atomically under that
+digest. Copies deduplicate, corrupted cached content can be repaired from a
+verified source, and range reads allocate at most 1 MiB. Empty files are supported.
+The caller supplies the copy budget; no source file is moved or deleted.
+Tests cover multi-chunk data, later source edits/moves, restart, budget/hash
+rejection, cache repair and range/digest validation. This primitive is not yet
+called by capture or exposed over the network: signed manifest authorization,
+network retrieval and native file/image landing still need to be connected.
+
 ## Native history projection
 
 `ClipboardHistoryMaterializer` verifies the journal and frozen payload again before
@@ -147,7 +158,8 @@ does not touch the OS clipboard or relay received records as new local captures.
 The whole resolved frontier is computed in one pass instead of rescanning the
 journal for each entry. This removes that quadratic scan; it does not establish
 large signed-history performance for the remaining snapshot-based services.
-File/image metadata remains pending until its bytes can be materialized. The
+File/image metadata, including alternate representations of inline content,
+remains pending until all of its bytes can be materialized. The
 shared-history UI, cache/deletion policy and recurring runtime still need wiring;
 the service is registered but is not activated in the installed app.
 
