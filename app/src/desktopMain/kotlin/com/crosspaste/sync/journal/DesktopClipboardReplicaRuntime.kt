@@ -44,6 +44,7 @@ internal class DesktopClipboardReplicaRuntime(
     private val receiveFiles: suspend (String, SignedClipboardChange, ByteArray, Int, Long) -> Unit,
     private val materialize: suspend (String, Int) -> ClipboardMaterializationResult,
     private val fileBudget: () -> Long = { 8L * 1024 * 1024 * 1024 },
+    private val refreshRecording: () -> Unit = {},
 ) {
     private data class FileKey(
         val clipboard: String,
@@ -167,6 +168,7 @@ internal class DesktopClipboardReplicaRuntime(
             var created = 0
             var failures = 0
             val queries = database.sharedClipboardDatabaseQueries
+            refreshRecording()
             for (workspace in queries.getEnabledWorkspaces().executeAsList()) {
                 val clipboard = workspace.clipboardId
                 try {

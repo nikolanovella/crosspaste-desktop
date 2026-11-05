@@ -15,6 +15,7 @@ import com.crosspaste.paste.item.getFilePaths
 import com.crosspaste.path.PlatformUserDataPathProvider
 import com.crosspaste.path.UserDataPathProvider
 import com.crosspaste.presist.SingleFileInfoTree
+import com.crosspaste.sync.journal.DesktopClipboardRecordingPolicy
 import com.crosspaste.task.TaskBuilder
 import com.crosspaste.task.TaskSubmitter
 import com.crosspaste.utils.DateUtils
@@ -140,6 +141,7 @@ class PasteReleaseServiceImageDedupTest {
 
         lateinit var pasteDao: SqlPasteDao
         lateinit var service: PasteReleaseService
+        var refreshRecording: () -> Unit = {}
 
         fun init(
             appInfo: AppInfo,
@@ -170,12 +172,49 @@ class PasteReleaseServiceImageDedupTest {
                     syncRuntimeInfoDao = mockk(relaxed = true),
                     taskSubmitter = taskSubmitter,
                     userDataPathProvider = userDataPathProvider,
+                    refreshSharedRecordingPolicy = { refreshRecording() },
                 )
         }
     }
 
     private fun newFixture(userDataPathProvider: UserDataPathProvider = mockk(relaxed = true)): Fixture =
         Fixture().apply { init(appInfo, searchContentService, userDataPathProvider) }
+
+    @Test
+    fun `desktop recording off on off on captures immediately without changing automatic paste or paused clipboards`() =
+        runTest {
+            val fixture = newFixture()
+            var recording = false
+            every { fixture.configManager.getCurrentConfig().enablePasteboardListening } answers { recording }
+            every { fixture.configManager.getCurrentConfig().useSharedClipboardForPaste } returns false
+            val queries = fixture.database.sharedClipboardDatabaseQueries
+            queries.putWorkspace("shared", true, false)
+            queries.putWorkspace("paused", false, false)
+            val policy = DesktopClipboardRecordingPolicy(fixture.database) { recording }
+            fixture.refreshRecording = policy::refresh
+
+            suspend fun copy(text: String) {
+                val id = fixture.createLoadingRecord()
+                fixture.service.releaseLocalPasteData(id, listOf(createTextPasteItem(text = text)), null)
+                assertEquals(PasteState.LOADED, fixture.pasteDao.getNoDeletePasteDataBlock(id)?.pasteState)
+            }
+            copy("off")
+            assertTrue(queries.getPendingCaptures("shared", 50).executeAsList().isEmpty())
+            recording = true
+            copy("first copy immediately after on")
+            assertEquals(1, queries.getPendingCaptures("shared", 50).executeAsList().size)
+            recording = false
+            policy.refresh()
+            copy("off again")
+            assertEquals(1, queries.getPendingCaptures("shared", 50).executeAsList().size)
+            recording = true
+            copy("on again")
+            assertEquals(2, queries.getPendingCaptures("shared", 50).executeAsList().size)
+            assertEquals(false, fixture.configManager.getCurrentConfig().useSharedClipboardForPaste)
+            assertEquals(false, queries.getWorkspace("paused").executeAsOne().enabled)
+            assertEquals(false, queries.getWorkspace("paused").executeAsOne().contributeLocal)
+            assertTrue(queries.getPendingCaptures("paused", 50).executeAsList().isEmpty())
+        }
 
     @Test
     fun `shared managed bytes survive local cleanup and capture acknowledgement until all references release`(

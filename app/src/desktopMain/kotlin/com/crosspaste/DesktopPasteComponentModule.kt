@@ -65,6 +65,7 @@ import com.crosspaste.sync.FilePullService
 import com.crosspaste.sync.PastePullCursorManager
 import com.crosspaste.sync.PastePullService
 import com.crosspaste.sync.PastePullTrigger
+import com.crosspaste.sync.journal.DesktopClipboardRecordingPolicy
 import com.crosspaste.task.CleanPasteTaskExecutor
 import com.crosspaste.task.CleanTaskTaskExecutor
 import com.crosspaste.task.DelayedDeletePasteTaskExecutor
@@ -233,6 +234,7 @@ fun desktopPasteComponentModule(headless: Boolean): Module =
                 syncRuntimeInfoDao = get(),
                 taskSubmitter = get(),
                 userDataPathProvider = get(),
+                refreshSharedRecordingPolicy = get<DesktopClipboardRecordingPolicy>()::refresh,
             )
         }
         single<PasteSyncProcessManager<Long>> { DefaultPasteSyncProcessManager() }

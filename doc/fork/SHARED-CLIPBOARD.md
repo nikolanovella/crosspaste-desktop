@@ -215,11 +215,17 @@ pending events. A separate two-worker, 64-slot queue handles original file snaps
 and incoming files so large file operations do not block metadata ticks. Pending
 event IDs are deduplicated and cancellation releases them for later retry.
 
-The runtime never selects the OS clipboard, changes contribution preferences or
+The runtime never selects the OS clipboard, changes the user's copy/paste settings or
 approves members. Failed peer history requests do not discard accepted local history
 or stop other ready work. Status flows expose tick results and file failure counts.
-The existing recording/paste switches remain independent. No workspace is created
-or enabled automatically during startup.
+The existing recording/paste switches remain independent. The desktop recording
+policy mirrors `enablePasteboardListening` into enabled clipboards' contribution
+field without modifying either global preference or enabling paused clipboards.
+It runs during background ticks and, crucially, inside the local capture transaction
+so the first copy immediately after recording resumes is eligible. Other platforms
+retain their existing policy through the default no-op hook. Previously captured
+history is retained when recording is off. No workspace is created or enabled
+automatically during startup.
 
 This is not yet installed. Before enabling the full product flow, finish native
 setup verification/membership propagation, shared deletion/cache policy and coexistence with
@@ -253,8 +259,8 @@ the service is registered but is not activated in the installed app.
   failures clearly and never advertise missing bytes as loaded content.
 - Finish legacy/live protocol coexistence to prevent duplicate native items and
   accidental OS clipboard selection during historical catch-up.
-- Bridge later recording-switch changes to the stored contribution choice while
-  keeping the independent automatic-paste preference unchanged.
+- Verify the independent recording/paste switches in the installed Windows/Mac UI;
+  the source recording bridge is covered by capture and isolated-config tests.
 - Finish all-empty-root folder validity and cross-platform path/name edge cases.
 - Verify the actual setup card, live paste/rendering and file flows on Windows/Mac.
 - Reuse authenticated Wi-Fi trust for Bluetooth address exchange and a native setup

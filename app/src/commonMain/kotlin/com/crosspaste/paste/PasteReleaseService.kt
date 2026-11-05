@@ -85,6 +85,7 @@ class PasteReleaseService(
     private val syncRuntimeInfoDao: SyncRuntimeInfoDao,
     private val taskSubmitter: TaskSubmitter,
     private val userDataPathProvider: UserDataPathProvider,
+    private val refreshSharedRecordingPolicy: () -> Unit = {},
 ) {
 
     companion object {
@@ -384,6 +385,9 @@ class PasteReleaseService(
             )
             val changed = database.pasteDatabaseQueries.change().executeAsOne() > 0
             if (changed && captureForSharedClipboard && !pasteData.remote) {
+                // Desktop mirrors its global recording choice here, in the same
+                // transaction as capture. Other platforms retain their existing policy.
+                refreshSharedRecordingPolicy()
                 database.sharedClipboardDatabaseQueries.enqueueLoadedLocalCapture(id)
             }
             changed

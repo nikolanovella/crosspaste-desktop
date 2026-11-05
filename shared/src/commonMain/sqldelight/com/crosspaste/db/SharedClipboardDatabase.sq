@@ -105,6 +105,10 @@ SELECT * FROM SharedClipboardWorkspaceEntity WHERE enabled = 1 ORDER BY clipboar
 getWorkspaces:
 SELECT * FROM SharedClipboardWorkspaceEntity ORDER BY clipboardId;
 
+followRecordingPreference:
+UPDATE SharedClipboardWorkspaceEntity SET contributeLocal = :recording
+WHERE enabled = 1 AND contributeLocal != :recording;
+
 getCapture:
 SELECT * FROM SharedClipboardCaptureEntity WHERE clipboardId = ? AND localPasteId = ?;
 
