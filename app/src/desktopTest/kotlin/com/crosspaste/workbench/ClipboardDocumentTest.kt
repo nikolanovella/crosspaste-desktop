@@ -48,6 +48,8 @@ class ClipboardDocumentTest {
                     .map { it.id }
                     .toSet(),
             )
+        val moved = grouped.move(setOf(grouped.blocks[2].id), grouped.blocks[1].id)
+        assertEquals(listOf("c", "a", "b"), moved.blocks.map { it.text })
         val independent =
             grouped.ungroup(
                 grouped.blocks

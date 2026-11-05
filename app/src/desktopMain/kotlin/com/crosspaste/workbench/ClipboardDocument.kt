@@ -82,7 +82,11 @@ data class ClipboardDocument(
         val moving = blocks.filter { it.id in ids || (it.groupId != null && it.groupId in groups) }
         if (moving.any { it.id == beforeId }) return this
         val remaining = blocks - moving.toSet()
-        val index = remaining.indexOfFirst { it.id == beforeId }.takeIf { it >= 0 } ?: remaining.size
+        val targetGroup = remaining.firstOrNull { it.id == beforeId }?.groupId
+        val index =
+            remaining
+                .indexOfFirst { if (targetGroup == null) it.id == beforeId else it.groupId == targetGroup }
+                .takeIf { it >= 0 } ?: remaining.size
         return copy(blocks = remaining.take(index) + moving + remaining.drop(index))
     }
 
