@@ -25,6 +25,7 @@ import com.crosspaste.sync.SyncManager
 import com.crosspaste.ui.settings.SettingSectionCard
 import com.crosspaste.ui.theme.AppUISize.medium
 import com.crosspaste.ui.theme.AppUISize.small
+import com.sun.jna.platform.win32.Shell32
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -105,6 +106,32 @@ internal fun BluetoothDevicesCard() {
                             )
                         }
                     }
+                }
+                TextButton(
+                    enabled = !connection.active,
+                    onClick = {
+                        val opened =
+                            runCatching {
+                                val result =
+                                    Shell32.INSTANCE.ShellExecute(
+                                        null,
+                                        "open",
+                                        "ms-settings:bluetooth",
+                                        null,
+                                        null,
+                                        1,
+                                    )
+                                result.toLong() > 32
+                            }.getOrDefault(false)
+                        inspectionMessage =
+                            if (opened) {
+                                "Pair in Windows Settings, then choose the paired device here."
+                            } else {
+                                "Open Bluetooth & devices in Windows Settings to pair."
+                            }
+                    },
+                ) {
+                    Text("Open Windows Bluetooth settings")
                 }
                 if (inspectionMessage.isNotEmpty()) Text(inspectionMessage, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
