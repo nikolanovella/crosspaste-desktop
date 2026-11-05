@@ -7,6 +7,8 @@ import com.crosspaste.cli.CliPairingService
 import com.crosspaste.cli.CliServer
 import com.crosspaste.cli.devCliEndpointPointerPath
 import com.crosspaste.config.DesktopConfigManager
+import com.crosspaste.db.sync.SyncRuntimeInfoDao
+import com.crosspaste.db.sync.SyncState
 import com.crosspaste.image.DesktopFaviconLoader
 import com.crosspaste.image.FaviconLoader
 import com.crosspaste.mcp.DesktopMcpServer
@@ -68,6 +70,7 @@ import com.crosspaste.paste.item.PasteItemReader
 import com.crosspaste.path.AppPathProvider
 import com.crosspaste.path.UserDataPathProvider
 import com.crosspaste.platform.Platform
+import com.crosspaste.secure.SecureStore
 import com.crosspaste.sync.FilePushService
 import com.crosspaste.sync.GeneralNearbyDeviceManager
 import com.crosspaste.sync.GeneralSyncManager
@@ -82,6 +85,7 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.sync.journal.ClipboardCaptureConsumer
 import com.crosspaste.sync.journal.ClipboardFileManifestVerifier
 import com.crosspaste.sync.journal.ClipboardFileTransfer
 import com.crosspaste.sync.journal.ClipboardFileTransferService
@@ -100,6 +104,7 @@ import com.crosspaste.sync.journal.DesktopClipboardFileManifestStore
 import com.crosspaste.sync.journal.DesktopClipboardFileReceiver
 import com.crosspaste.sync.journal.DesktopClipboardFileSnapshotter
 import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
+import com.crosspaste.sync.journal.DesktopClipboardReplicaRuntime
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
 import com.crosspaste.sync.journal.capturedClipboardFileRoot
 import com.crosspaste.task.TaskSubmitter
@@ -108,6 +113,7 @@ import com.crosspaste.ui.devices.DefaultPairingV3UiController
 import com.crosspaste.ui.devices.PairingV3UiController
 import com.crosspaste.utils.HostAndPort
 import com.crosspaste.utils.buildUrl
+import com.crosspaste.utils.getFileUtils
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -142,6 +148,67 @@ fun desktopNetworkModule(
         single { ClipboardMembershipStore(get(), get()) }
         single { ClipboardFileManifestVerifier(get<ClipboardMembershipStore>()::signingKey) }
         single { ClipboardHistoryPuller(get(), get()) }
+        single {
+            val database = get<Database>()
+            val device = get<AppInfo>().appInstanceId
+            val secure = get<SecureStore>()
+            val members = get<ClipboardMembershipStore>()
+            val consumers = java.util.concurrent.ConcurrentHashMap<String, ClipboardCaptureConsumer>()
+            val pulling = get<ClipboardHistoryPuller>()
+            val metadata = get<DesktopClipboardPayloadReceiver>()
+            val snapshots = get<DesktopClipboardFileSnapshotter>()
+            val receiving = get<DesktopClipboardFileReceiver>()
+            val native = get<ClipboardHistoryMaterializer>()
+            val devices = get<SyncRuntimeInfoDao>()
+            val config = get<DesktopConfigManager>()
+            DesktopClipboardReplicaRuntime(
+                database,
+                device,
+                get(),
+                peers = {
+                    devices
+                        .getAllSyncRuntimeInfos()
+                        .filter {
+                            it.connectState == SyncState.CONNECTED &&
+                                secure.existCryptPublicKey(it.appInstanceId)
+                        }.map { it.appInstanceId }
+                },
+                drain = { clipboard, limit ->
+                    consumers
+                        .getOrPut(clipboard) {
+                            ClipboardCaptureConsumer(
+                                database,
+                                clipboard,
+                                device,
+                                secure.secureKeyPair.signKeyPair.privateKey,
+                                { members.signingKey(clipboard, it) },
+                            )
+                        }.drain(limit)
+                },
+                pull = pulling::pull,
+                metadata = { peer, clipboard, hash, budget -> metadata.receive(peer, clipboard, hash, budget) },
+                snapshot = { event, bytes, budget -> snapshots.snapshot(event, bytes, budget) },
+                receiveFiles = {
+                    peer,
+                    event,
+                    bytes,
+                    manifestBudget,
+                    budget,
+                    ->
+                    receiving.receive(peer, event, bytes, manifestBudget, budget)
+                },
+                materialize = native::materialize,
+                fileBudget = {
+                    val settings = config.getCurrentConfig()
+                    val ceiling = 8L * 1024 * 1024 * 1024
+                    if (settings.enabledSyncFileSizeLimit) {
+                        minOf(ceiling, getFileUtils().bytesSize(settings.maxSyncFileSize))
+                    } else {
+                        ceiling
+                    }
+                },
+            )
+        }
         single {
             val reader = get<PasteItemReader>()
             val search = get<SearchContentService>()

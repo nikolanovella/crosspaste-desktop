@@ -196,7 +196,28 @@ items instead of leaving every file pending. Items still wait when bytes are
 missing. A fresh frontier check inside the SQL publication transaction prevents
 an item deleted during file preparation from becoming a new loaded row. File
 placement and native history services remain source-only; recurring runtime
-activation and the complete global cache/deletion policy are unfinished.
+setup and the complete global cache/deletion policy are unfinished.
+
+## Replica background runtime
+
+The desktop source now starts a managed replica runtime after normal sync startup
+and cancels/joins it before storage shutdown. With no explicitly enabled workspace
+it performs no replication. A bounded metadata tick drains captured records, pulls
+approved connected replicas, retrieves missing frozen metadata and materializes
+ready native history. Rotating batches avoid repeatedly considering only the first
+pending events. A separate two-worker, 64-slot queue handles original file snapshots
+and incoming files so large file operations do not block metadata ticks. Pending
+event IDs are deduplicated and cancellation releases them for later retry.
+
+The runtime never selects the OS clipboard, changes contribution preferences or
+approves members. Failed peer history requests do not discard accepted local history
+or stop other ready work. Status flows expose tick results and file failure counts.
+The existing recording/paste switches remain independent. No workspace is created
+or enabled automatically during startup.
+
+This is not yet installed. Before enabling the full product flow, finish native
+setup/membership propagation, shared deletion/cache policy and coexistence with
+legacy live sync so a copy cannot appear twice through the two protocols.
 
 ## Native history projection
 

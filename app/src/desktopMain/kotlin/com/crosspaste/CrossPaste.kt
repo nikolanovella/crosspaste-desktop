@@ -53,6 +53,7 @@ import com.crosspaste.sync.PastePullService
 import com.crosspaste.sync.PastePullTrigger
 import com.crosspaste.sync.QRCodeGenerator
 import com.crosspaste.sync.SyncManager
+import com.crosspaste.sync.journal.DesktopClipboardReplicaRuntime
 import com.crosspaste.task.TaskExecutor
 import com.crosspaste.ui.CrossPasteWindows
 import com.crosspaste.ui.LocalAppSizeValueState
@@ -132,6 +133,7 @@ class CrossPaste {
             RENDERING,
             RESOURCES_CLIENT,
             SYNC_MANAGER,
+            SHARED_CLIPBOARD,
             TASK_EXECUTOR,
             USER_DATA_PATH,
             WINDOW_MANAGER,
@@ -200,6 +202,8 @@ class CrossPaste {
                     getManagedService<SyncManager>(ManagedService.SYNC_MANAGER).start()
                     koin.get<PastePullService>().init()
                     getManagedService<PastePullTrigger>(ManagedService.PASTE_PULL_TRIGGER).start()
+                    getManagedService<DesktopClipboardReplicaRuntime>(ManagedService.SHARED_CLIPBOARD)
+                        .start(ioCoroutineDispatcher)
                     val pasteServer = getManagedService<Server>(ManagedService.PASTE_SERVER)
                     if (headless) {
                         // A daemon without its sync endpoint is not operational.
@@ -417,6 +421,14 @@ class CrossPaste {
                                     stopManagedService<PastePullTrigger>(
                                         ManagedService.PASTE_PULL_TRIGGER,
                                         "PastePullTrigger",
+                                    ) { it.stop() }
+                                },
+                            )
+                            add(
+                                async {
+                                    stopManagedService<DesktopClipboardReplicaRuntime>(
+                                        ManagedService.SHARED_CLIPBOARD,
+                                        "SharedClipboard",
                                     ) { it.stop() }
                                 },
                             )

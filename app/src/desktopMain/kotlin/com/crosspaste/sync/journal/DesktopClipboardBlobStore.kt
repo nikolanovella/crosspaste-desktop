@@ -5,6 +5,8 @@ import com.crosspaste.utils.StreamingMurmurHash3
 import com.crosspaste.utils.appendHex
 import com.crosspaste.utils.getCodecsUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -15,6 +17,7 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import java.nio.file.StandardOpenOption.CREATE_NEW
 import java.nio.file.StandardOpenOption.READ
 import java.nio.file.StandardOpenOption.WRITE
 import java.security.MessageDigest
@@ -64,6 +67,7 @@ internal class DesktopClipboardBlobStore(
                         Files.newOutputStream(temporary).use { output ->
                             val buffer = ByteBuffer.allocate(CHUNK_BYTES)
                             while (true) {
+                                currentCoroutineContext().ensureActive()
                                 buffer.clear()
                                 val read = input.read(buffer)
                                 if (read < 0) break
@@ -122,6 +126,7 @@ internal class DesktopClipboardBlobStore(
             FileChannel.open(source, READ, NOFOLLOW_LINKS).use { channel ->
                 val buffer = ByteBuffer.allocate(CHUNK_BYTES)
                 while (true) {
+                    currentCoroutineContext().ensureActive()
                     buffer.clear()
                     val read = channel.read(buffer)
                     if (read < 0) break
@@ -137,7 +142,20 @@ internal class DesktopClipboardBlobStore(
     ) = withContext(Dispatchers.IO) {
         mutex.withLock {
             require(verified(blob)) { "Private file bytes are unavailable" }
-            Files.copy(path(blob.sha256), destination)
+            FileChannel.open(path(blob.sha256), READ, NOFOLLOW_LINKS).use { input ->
+                FileChannel.open(destination, CREATE_NEW, WRITE).use { output ->
+                    val buffer = ByteBuffer.allocate(CHUNK_BYTES)
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        buffer.clear()
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        buffer.flip()
+                        while (buffer.hasRemaining()) output.write(buffer)
+                    }
+                    output.force(true)
+                }
+            }
             require(matches(destination, blob)) { "Landed file SHA-256 did not verify" }
             FileChannel.open(destination, WRITE).use { it.force(true) }
         }
@@ -172,7 +190,7 @@ internal class DesktopClipboardBlobStore(
         return root.resolve("blobs").resolve(hash.take(2)).resolve(hash)
     }
 
-    private fun verified(blob: ClipboardBlob): Boolean {
+    private suspend fun verified(blob: ClipboardBlob): Boolean {
         if (blob.size < 0) return false
         val source = path(blob.sha256)
         if (!Files.isRegularFile(source, NOFOLLOW_LINKS) || Files.size(source) != blob.size) return false
@@ -180,6 +198,7 @@ internal class DesktopClipboardBlobStore(
         FileChannel.open(source, READ, NOFOLLOW_LINKS).use { channel ->
             val buffer = ByteBuffer.allocate(CHUNK_BYTES)
             while (true) {
+                currentCoroutineContext().ensureActive()
                 buffer.clear()
                 val read = channel.read(buffer)
                 if (read < 0) break
