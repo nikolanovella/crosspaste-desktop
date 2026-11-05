@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.crosspaste.platform.Platform
@@ -24,6 +25,8 @@ import com.crosspaste.sync.SyncManager
 import com.crosspaste.ui.settings.SettingSectionCard
 import com.crosspaste.ui.theme.AppUISize.medium
 import com.crosspaste.ui.theme.AppUISize.small
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 /** Lives in Devices, using the existing theme and cards rather than a second UI. */
@@ -40,6 +43,12 @@ internal fun BluetoothDevicesCard() {
     val selected = candidates.firstOrNull { it.appInstanceId == selectedId } ?: candidates.firstOrNull()
     var address by remember { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+    var pairedDevices by remember { mutableStateOf<List<KnownBluetoothDevice>>(emptyList()) }
+    var deviceMenuOpen by remember { mutableStateOf(false) }
+    var inspecting by remember { mutableStateOf(false) }
+    var inspectionMessage by remember { mutableStateOf("") }
 
     SettingSectionCard {
         Column(Modifier.fillMaxWidth().padding(medium), verticalArrangement = Arrangement.spacedBy(small)) {
@@ -64,6 +73,40 @@ internal fun BluetoothDevicesCard() {
                 }
             }
             if (platform.isWindows()) {
+                TextButton(
+                    enabled = !connection.active && !inspecting,
+                    onClick = {
+                        inspecting = true
+                        scope.launch {
+                            try {
+                                pairedDevices = inspectPairedWindowsBluetoothDevices()
+                                inspectionMessage =
+                                    if (pairedDevices.isEmpty()) "No paired Bluetooth devices found" else ""
+                                deviceMenuOpen = pairedDevices.isNotEmpty()
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (_: Exception) {
+                                inspectionMessage = "Could not read paired devices. You can still enter the address."
+                            } finally {
+                                inspecting = false
+                            }
+                        }
+                    },
+                ) {
+                    Text(if (inspecting) "Reading paired devices…" else "Choose a paired Bluetooth device")
+                    DropdownMenu(expanded = deviceMenuOpen, onDismissRequest = { deviceMenuOpen = false }) {
+                        pairedDevices.forEach { device ->
+                            DropdownMenuItem(
+                                text = { Text(device.name.ifBlank { device.address }) },
+                                onClick = {
+                                    address = device.address
+                                    deviceMenuOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
+                if (inspectionMessage.isNotEmpty()) Text(inspectionMessage, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = address,
                     onValueChange = { address = it },
