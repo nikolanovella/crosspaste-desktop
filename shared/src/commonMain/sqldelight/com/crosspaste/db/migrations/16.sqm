@@ -1,0 +1,7 @@
+CREATE TABLE SharedClipboardSelectionEntity (
+    clipboardId TEXT NOT NULL,
+    author TEXT NOT NULL,
+    selectionClock INTEGER NOT NULL,
+    signedSelection TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, author, selectionClock)
+);

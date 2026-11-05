@@ -59,6 +59,7 @@ class PasteClipboardPeerWire(
                     "invitation",
                     "invitation/status",
                     "history",
+                    "selection",
                     "payload",
                     "file-manifest",
                     "file-blob",
@@ -114,6 +115,13 @@ class ClipboardPeerClient(
             "invitation/status",
             Json.encodeToString(ClipboardInvitationLookup(invitationId)),
         )
+
+    suspend fun selection(
+        peer: String,
+        clipboard: String,
+        current: SignedClipboardSelection?,
+    ): VerifiedClipboardPeerReply =
+        exchange(peer, clipboard, ClipboardPeerOperation.SELECTION, "selection", Json.encodeToString(current))
 
     suspend fun history(
         peer: String,

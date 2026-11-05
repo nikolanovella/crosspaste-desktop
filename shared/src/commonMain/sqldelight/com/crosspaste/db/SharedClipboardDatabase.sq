@@ -226,3 +226,31 @@ DELETE FROM SharedClipboardFileReceiptEntity WHERE localPasteId = ?;
 getCaptureEventSequences:
 SELECT originSequence FROM SharedClipboardEventEntity WHERE clipboardId = ? AND originDevice = ? AND entryId = ?
 ORDER BY originSequence DESC;
+
+CREATE TABLE SharedClipboardSelectionEntity (
+    clipboardId TEXT NOT NULL,
+    author TEXT NOT NULL,
+    selectionClock INTEGER NOT NULL,
+    signedSelection TEXT NOT NULL,
+    PRIMARY KEY (clipboardId, author, selectionClock)
+);
+
+getClipboardSelection:
+SELECT signedSelection FROM SharedClipboardSelectionEntity
+WHERE clipboardId = ? AND author = ? AND selectionClock = ?;
+
+listClipboardSelections:
+SELECT signedSelection FROM SharedClipboardSelectionEntity WHERE clipboardId = ?;
+
+insertClipboardSelection:
+INSERT INTO SharedClipboardSelectionEntity (clipboardId, author, selectionClock, signedSelection)
+VALUES (?, ?, ?, ?);
+
+getClipboardSelectionClock:
+SELECT IFNULL(MAX(selectionClock), 0) FROM SharedClipboardSelectionEntity WHERE clipboardId = ?;
+
+getLatestClipboardSelection:
+SELECT signedSelection FROM SharedClipboardSelectionEntity
+WHERE clipboardId = ?
+ORDER BY selectionClock DESC, author DESC
+LIMIT 1;

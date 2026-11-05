@@ -204,7 +204,11 @@ fun desktopNetworkModule(
                             )
                         }.drain(limit)
                 },
-                pull = pulling::pull,
+                pull = { clipboard, peer, limit ->
+                    val count = pulling.pull(clipboard, peer, limit)
+                    pulling.syncSelection(clipboard, peer)
+                    count
+                },
                 metadata = { peer, clipboard, hash, budget -> metadata.receive(peer, clipboard, hash, budget) },
                 snapshot = { event, bytes, budget -> snapshots.snapshot(event, bytes, budget) },
                 receiveFiles = {
@@ -217,6 +221,12 @@ fun desktopNetworkModule(
                     receiving.receive(peer, event, bytes, manifestBudget, budget)
                 },
                 materialize = native::materialize,
+                applySelection = { paste ->
+                    config.getCurrentConfig().useSharedClipboardForPaste &&
+                        get<com.crosspaste.paste.PasteboardService>()
+                            .tryWritePasteboard(paste, localOnly = true)
+                            .getOrThrow() != null
+                },
                 fileBudget = {
                     val settings = config.getCurrentConfig()
                     val ceiling = 8L * 1024 * 1024 * 1024

@@ -54,37 +54,50 @@ fun Routing.clipboardHistoryRouting(
             call.respond(HttpStatusCode.Unauthorized)
         }
     }
-    post("/clipboard/history") {
-        val peer = call.request.headers[HEADER_APP_INSTANCE_ID]
-        if (peer.isNullOrBlank() ||
-            peer.length > 256 ||
-            call.request.headers["secure"] != "1" ||
-            call.request.headers[HEADER_TARGET_APP_INSTANCE_ID] != localDevice
-        ) {
-            call.respond(HttpStatusCode.Unauthorized)
-            return@post
-        }
-        val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-        if (length != null && length !in 1..131072) {
-            call.respond(HttpStatusCode.PayloadTooLarge)
-            return@post
-        }
-        try {
-            val verified =
-                authentication.verify(
-                    peer,
-                    call.receive<ClipboardPeerProof>(),
-                    ClipboardPeerOperation.HISTORY,
-                )
-            if (verified == null) {
+    val routes =
+        mapOf(
+            "history" to ClipboardPeerOperation.HISTORY,
+            "selection" to ClipboardPeerOperation.SELECTION,
+        )
+    for ((path, operation) in routes) {
+        post("/clipboard/$path") {
+            val peer = call.request.headers[HEADER_APP_INSTANCE_ID]
+            if (peer.isNullOrBlank() ||
+                peer.length > 256 ||
+                call.request.headers["secure"] != "1" ||
+                call.request.headers[HEADER_TARGET_APP_INSTANCE_ID] != localDevice
+            ) {
                 call.respond(HttpStatusCode.Unauthorized)
                 return@post
             }
-            call.respond(authentication.reply(verified, Json.encodeToString(history.read(verified))))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            call.respond(HttpStatusCode.Unauthorized)
+            val length = call.request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+            if (length != null && length !in 1..131072) {
+                call.respond(HttpStatusCode.PayloadTooLarge)
+                return@post
+            }
+            try {
+                val verified =
+                    authentication.verify(
+                        peer,
+                        call.receive<ClipboardPeerProof>(),
+                        operation,
+                    )
+                if (verified == null) {
+                    call.respond(HttpStatusCode.Unauthorized)
+                    return@post
+                }
+                val payload =
+                    if (operation == ClipboardPeerOperation.SELECTION) {
+                        Json.encodeToString(history.exchangeSelection(verified))
+                    } else {
+                        Json.encodeToString(history.read(verified))
+                    }
+                call.respond(authentication.reply(verified, payload))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                call.respond(HttpStatusCode.Unauthorized)
+            }
         }
     }
 }

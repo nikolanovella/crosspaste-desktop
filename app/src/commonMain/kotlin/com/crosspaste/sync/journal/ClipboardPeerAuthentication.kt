@@ -20,6 +20,7 @@ enum class ClipboardPeerOperation {
     PAYLOAD,
     FILE_MANIFEST,
     FILE_BLOB,
+    SELECTION,
 }
 
 @Serializable

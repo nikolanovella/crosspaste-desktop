@@ -189,8 +189,15 @@ class ClipboardIdentityRoutingTest {
                     sql.load(),
                     sql,
                 )
-            bJournal.append("offline-b-entry", "test-content")
+            val target = bJournal.append("offline-b-entry", "test-content").change.id
             val aHistory = ClipboardHistoryService(aDb, "a", f.aStore, serializer)
+            val bKeys = f.bStore.secureKeyPair.signKeyPair
+            val bHistory = ClipboardHistoryService(bDb, "b", f.bStore, serializer)
+            val selection = ClipboardSelection("shared", "b", 1, target)
+            val authenticator = ClipboardSelectionAuthenticator("shared") { bMembers.signingKey("shared", it) }
+            bHistory.selectionStore("shared").ingest(listOf(authenticator.sign(selection, bKeys.privateKey)))
+            ClipboardHistoryPuller(sender, aHistory).syncSelection("shared", "b")
+            assertEquals(selection, aHistory.selectionStore("shared").latest()?.selection)
             assertEquals(1, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
             assertEquals(0, ClipboardHistoryPuller(sender, aHistory).pull("shared", "b"))
             assertEquals(sql.load(), SqlSignedClipboardStore(aDb, "shared").load())

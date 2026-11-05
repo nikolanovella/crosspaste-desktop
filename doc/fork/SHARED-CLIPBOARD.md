@@ -115,6 +115,25 @@ paused history preserves its stored contribution choice. The running app has not
 been updated with this experimental UI; real visual/Windows-Mac setup verification
 and propagation to additional existing members remain unfinished.
 
+## Current shared selection
+
+A selection identifies one capture by its original event ID. Devices can
+reconcile history without changing the selected item. The selection resolver
+orders records by a logical clock and then by author, independent of arrival
+order. If the winning capture is missing or unavailable, the selection remains
+pending instead of reverting to an older item.
+
+Selection records have a separate signature domain and SQLite table. The local
+capture consumer commits the newest capture's selection alongside the capture
+batch when contribution is enabled. If another writer advances the selection
+clock before that transaction commits, the batch stays queued for retry.
+
+The desktop worker exchanges the winning signed selection through the encrypted
+selection endpoint using the existing peer route resolver. Older peers can
+continue exchanging history. The worker applies a remote selection only after
+its verified target becomes a locally materialized item and the independent
+paste setting permits it. Live Windows–Mac verification is pending.
+
 ## Missing-history catch-up
 
 `ClipboardHistoryService` serves bounded missing-event batches only to explicitly

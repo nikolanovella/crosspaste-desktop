@@ -62,7 +62,12 @@ class SqlSignedClipboardStore internal constructor(
             },
         )
 
-    override fun save(snapshot: SignedClipboardSnapshot) {
+    override fun save(snapshot: SignedClipboardSnapshot) = save(snapshot, null)
+
+    internal fun save(
+        snapshot: SignedClipboardSnapshot,
+        selection: SignedClipboardSelection?,
+    ) {
         require(snapshot.clipboard == clipboard)
         database.transaction {
             require(queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled == true) { "Clipboard not joined" }
@@ -83,6 +88,13 @@ class SqlSignedClipboardStore internal constructor(
                     change.entry,
                     Json.encodeToString(signed),
                 )
+            }
+            if (selection != null && queries.getWorkspace(clipboard).executeAsOne().contributeLocal) {
+                val record = selection.selection
+                require(record.clipboard == clipboard && record.target in proposed)
+                val latest = queries.getClipboardSelectionClock(clipboard).executeAsOne()
+                require(record.clock > latest) { "Stale clipboard selection clock" }
+                queries.insertClipboardSelection(clipboard, record.author, record.clock, Json.encodeToString(selection))
             }
             captureCommits.forEach { commit ->
                 require(commit.capture.clipboardId == clipboard)

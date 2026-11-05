@@ -1,6 +1,8 @@
 package com.crosspaste.sync.journal
 
 import com.crosspaste.Database
+import com.crosspaste.paste.PasteData
+import com.crosspaste.paste.PasteState
 import com.crosspaste.secure.SecureKeyPairSerializer
 import com.crosspaste.secure.SecureStore
 import com.crosspaste.utils.getCodecsUtils
@@ -67,6 +69,45 @@ class ClipboardHistoryService(
             database.transaction { admissions.commit(plan) }
             ClipboardHistoryBatch(request.clipboard, changes, proofs)
         }
+
+    /** Exchange a bounded selection head independently of paginated capture history. */
+    suspend fun exchangeSelection(verified: VerifiedClipboardPeerRequest): SignedClipboardSelection? =
+        mutex.withLock {
+            val request = verified.request
+            require(request.operation == ClipboardPeerOperation.SELECTION && request.target == localDevice)
+            requireMember(request.clipboard, request.sender)
+            val store = selectionStore(request.clipboard)
+            Json.decodeFromString<SignedClipboardSelection?>(request.payload)?.let { store.ingest(listOf(it)) }
+            store.latest()
+        }
+
+    internal fun selectionStore(clipboard: String): SqlClipboardSelectionStore =
+        SqlClipboardSelectionStore(
+            database,
+            clipboard,
+            ClipboardSelectionAuthenticator(clipboard) { members.signingKey(clipboard, it) },
+        )
+
+    internal suspend fun selectedPaste(
+        clipboard: String,
+        verifiedHeads: Collection<ClipboardChange>,
+    ): Pair<ClipboardSelection, PasteData>? {
+        val selection = selectionStore(clipboard).latest()?.selection ?: return null
+        val resolution = resolveClipboardSelection(clipboard, listOf(selection), verifiedHeads)
+        if (resolution !is ClipboardSelectionResolution.Ready) return null
+        val event = resolution.target
+        val queries = database.sharedClipboardDatabaseQueries
+        if (queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled != true) return null
+        val projection =
+            queries.getProjection(clipboard, event.id.device, event.id.sequence).executeAsOneOrNull()
+                ?: return null
+        if (projection.entryId != event.entry || projection.contentHash != event.contentHash) return null
+        val paste =
+            database.pasteDatabaseQueries
+                .getPasteData(projection.localPasteId, listOf(PasteState.LOADED.toLong()), PasteData::mapper)
+                .executeAsOneOrNull() ?: return null
+        return selection to paste
+    }
 
     suspend fun cursor(clipboard: String): Map<String, Long> = mutex.withLock { open(clipboard).cursor() }
 
@@ -311,5 +352,20 @@ class ClipboardHistoryPuller(
         return history.ingest(
             client.history(peer, clipboard, ClipboardHistoryRequest(cursor, limit, history.admissionProofs(clipboard))),
         )
+    }
+
+    internal suspend fun syncSelection(
+        clipboard: String,
+        peer: String,
+    ) {
+        val store = history.selectionStore(clipboard)
+        val reply =
+            try {
+                client.selection(peer, clipboard, store.latest())
+            } catch (_: ClipboardPeerUnavailableException) {
+                // Older peers can still exchange capture history.
+                return
+            }
+        Json.decodeFromString<SignedClipboardSelection?>(reply.payload)?.let { store.ingest(listOf(it)) }
     }
 }

@@ -2,6 +2,7 @@ package com.crosspaste.sync.journal
 
 import com.crosspaste.Database
 import com.crosspaste.paste.PasteCollection
+import com.crosspaste.paste.PasteData
 import com.crosspaste.paste.item.PasteFiles
 import com.crosspaste.paste.item.PasteItem
 import kotlinx.coroutines.CancellationException
@@ -31,7 +32,7 @@ data class ClipboardReplicaTick(
     val failures: Int,
 )
 
-/** Metadata reconciliation never waits for the bounded file queue. Neither lane selects the OS clipboard. */
+/** Metadata reconciliation never waits for the bounded file queue. Only explicit signed selections can update the OS clipboard. */
 internal class DesktopClipboardReplicaRuntime(
     private val database: Database,
     private val localDevice: String,
@@ -45,6 +46,7 @@ internal class DesktopClipboardReplicaRuntime(
     private val materialize: suspend (String, Int) -> ClipboardMaterializationResult,
     private val fileBudget: () -> Long = { 8L * 1024 * 1024 * 1024 },
     private val refreshRecording: () -> Unit = {},
+    private val applySelection: (suspend (PasteData) -> Boolean)? = null,
 ) {
     private data class FileKey(
         val clipboard: String,
@@ -63,6 +65,7 @@ internal class DesktopClipboardReplicaRuntime(
     private val pending = mutableSetOf<FileKey>()
     private val files = Channel<FileWork>(64)
     private val offsets = mutableMapOf<String, Int>()
+    private val appliedSelections = mutableMapOf<String, ClipboardSelection>()
     private var job: Job? = null
     private val mutableFileFailures = MutableStateFlow(0L)
     val fileFailures = mutableFileFailures.asStateFlow()
@@ -261,6 +264,15 @@ internal class DesktopClipboardReplicaRuntime(
                         }
                     }
                     created += materialize(clipboard, limit).created
+                    applySelection?.let { apply ->
+                        history.selectedPaste(clipboard, heads)?.let { (selection, paste) ->
+                            if (selection != appliedSelections[clipboard] &&
+                                (selection.author == localDevice || apply(paste))
+                            ) {
+                                appliedSelections[clipboard] = selection
+                            }
+                        }
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {

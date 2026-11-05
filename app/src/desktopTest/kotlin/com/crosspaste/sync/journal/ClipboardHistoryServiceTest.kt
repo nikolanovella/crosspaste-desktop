@@ -57,6 +57,7 @@ private class HistoryFixture(
                     val operation =
                         when (path) {
                             "history" -> ClipboardPeerOperation.HISTORY
+                            "selection" -> ClipboardPeerOperation.SELECTION
                             "payload" -> ClipboardPeerOperation.PAYLOAD
                             else -> error("Unexpected operation")
                         }
@@ -69,12 +70,10 @@ private class HistoryFixture(
                         throw kotlinx.coroutines.CancellationException("Fixture transfer interrupted")
                     }
                     val body =
-                        if (operation ==
-                            ClipboardPeerOperation.HISTORY
-                        ) {
-                            Json.encodeToString(target.read(verified))
-                        } else {
-                            Json.encodeToString(target.payload(verified))
+                        when (operation) {
+                            ClipboardPeerOperation.HISTORY -> Json.encodeToString(target.read(verified))
+                            ClipboardPeerOperation.SELECTION -> Json.encodeToString(target.exchangeSelection(verified))
+                            else -> Json.encodeToString(target.payload(verified))
                         }
                     return remote.reply(verified, body)
                 }
@@ -167,6 +166,7 @@ class ClipboardHistoryServiceTest {
         f: HistoryFixture,
         text: String,
         sourceId: Long = 42,
+        pullHistory: Boolean = true,
     ): Pair<String, ByteArray> {
         getJsonUtils()
         val item = createTextPasteItem(text = text)
@@ -197,7 +197,7 @@ class ClipboardHistoryServiceTest {
             "b",
             f.peers.bStore,
         ).append(Json.encodeToString(listOf("capture/v1", "b", sourceId.toString())), hash)
-        ClipboardHistoryPuller(f.client(true), f.a).pull("shared", "b")
+        if (pullHistory) ClipboardHistoryPuller(f.client(true), f.a).pull("shared", "b")
         return hash to bytes
     }
 
@@ -503,6 +503,33 @@ class ClipboardHistoryServiceTest {
                     .getPayload("shared", hash)
                     .executeAsOneOrNull(),
             )
+        }
+
+    @Test
+    fun `signed selection arrives before its target and survives service restart`() =
+        runTest {
+            val f = historyFixture()
+            val (hash, bytes) = preparePayload(f, "selected clipboard text", pullHistory = false)
+            val snapshot = SqlSignedClipboardStore(f.bDb, "shared").load()
+            val event = snapshot.changes.single().change
+            val keys = f.peers.bStore.secureKeyPair.signKeyPair
+            val authenticator = ClipboardSelectionAuthenticator("shared") { keys.publicKey }
+            val selection = ClipboardSelection("shared", "b", 1, event.id)
+            f.b.selectionStore("shared").ingest(listOf(authenticator.sign(selection, keys.privateKey)))
+
+            val puller = ClipboardHistoryPuller(f.client(true), f.a)
+            puller.syncSelection("shared", "b")
+            val restarted = ClipboardHistoryService(f.aDb, "a", f.peers.aStore, SecureKeyPairSerializer())
+            assertEquals(selection, restarted.selectionStore("shared").latest()?.selection)
+            assertEquals(null, restarted.selectedPaste("shared", emptyList()))
+            assertEquals(1, puller.pull("shared", "b"))
+            assertEquals(null, restarted.selectedPaste("shared", listOf(event)))
+            restarted.storePayload("shared", hash, bytes)
+            val materializer = ClipboardHistoryMaterializer(f.aDb, restarted, "a", { null }, { _, _ -> })
+            assertEquals(1, materializer.materialize("shared").created)
+            assertEquals(selection, restarted.selectedPaste("shared", listOf(event))?.first)
+            puller.syncSelection("shared", "b")
+            assertEquals(1, restarted.selectionStore("shared").load().size)
         }
 
     @Test

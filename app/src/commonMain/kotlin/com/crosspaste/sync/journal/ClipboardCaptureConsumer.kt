@@ -24,7 +24,8 @@ class ClipboardCaptureConsumer(
         mutex.withLock {
             require(limit in 1..500)
             val queries = database.sharedClipboardDatabaseQueries
-            if (queries.getWorkspace(clipboard).executeAsOneOrNull()?.enabled != true) return@withLock 0
+            val workspace = queries.getWorkspace(clipboard).executeAsOneOrNull()
+            if (workspace?.enabled != true) return@withLock 0
             val captures = queries.getPendingCaptures(clipboard, limit.toLong()).executeAsList()
             if (captures.isEmpty()) return@withLock 0
             val commits =
@@ -62,7 +63,21 @@ class ClipboardCaptureConsumer(
                     )
                 }
             }
-            store.save(staged)
+            val selection =
+                if (workspace.contributeLocal) {
+                    val entry = commits.last().entry
+                    val target =
+                        staged.changes
+                            .single { it.change.entry == entry && it.change.parents.isEmpty() }
+                            .change.id
+                    val authenticator = ClipboardSelectionAuthenticator(clipboard, memberKey)
+                    val clock = queries.getClipboardSelectionClock(clipboard).executeAsOne()
+                    require(clock < Long.MAX_VALUE)
+                    authenticator.sign(ClipboardSelection(clipboard, device, clock + 1, target), privateKey)
+                } else {
+                    null
+                }
+            store.save(staged, selection)
             captures.size
         }
 }
