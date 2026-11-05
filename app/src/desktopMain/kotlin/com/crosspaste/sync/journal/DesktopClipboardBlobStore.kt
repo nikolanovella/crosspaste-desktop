@@ -16,6 +16,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.nio.file.StandardOpenOption.READ
+import java.nio.file.StandardOpenOption.WRITE
 import java.security.MessageDigest
 import java.util.HexFormat
 
@@ -76,7 +77,10 @@ internal class DesktopClipboardBlobStore(
                     val descriptor = ClipboardBlob(hash, copied, legacy)
                     val target = path(hash)
                     Files.createDirectories(target.parent)
-                    if (!verified(descriptor)) Files.move(temporary, target, ATOMIC_MOVE, REPLACE_EXISTING)
+                    if (!verified(descriptor)) {
+                        FileChannel.open(temporary, WRITE).use { it.force(true) }
+                        Files.move(temporary, target, ATOMIC_MOVE, REPLACE_EXISTING)
+                    }
                     descriptor
                 } finally {
                     Files.deleteIfExists(temporary)

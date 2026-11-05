@@ -66,6 +66,7 @@ import com.crosspaste.paste.PasteType
 import com.crosspaste.paste.SearchContentService
 import com.crosspaste.paste.item.PasteItemReader
 import com.crosspaste.path.AppPathProvider
+import com.crosspaste.path.UserDataPathProvider
 import com.crosspaste.platform.Platform
 import com.crosspaste.sync.FilePushService
 import com.crosspaste.sync.GeneralNearbyDeviceManager
@@ -81,17 +82,21 @@ import com.crosspaste.sync.SyncDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
+import com.crosspaste.sync.journal.ClipboardFileManifestVerifier
 import com.crosspaste.sync.journal.ClipboardHistoryMaterializer
 import com.crosspaste.sync.journal.ClipboardHistoryPuller
 import com.crosspaste.sync.journal.ClipboardHistoryService
 import com.crosspaste.sync.journal.ClipboardInvitationSender
 import com.crosspaste.sync.journal.ClipboardInvitationService
+import com.crosspaste.sync.journal.ClipboardMembershipStore
 import com.crosspaste.sync.journal.ClipboardPayloadTransfer
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
 import com.crosspaste.sync.journal.ClipboardPeerClient
 import com.crosspaste.sync.journal.DesktopClipboardBlobStore
+import com.crosspaste.sync.journal.DesktopClipboardFileSnapshotter
 import com.crosspaste.sync.journal.DesktopClipboardPayloadReceiver
 import com.crosspaste.sync.journal.PasteClipboardPeerWire
+import com.crosspaste.sync.journal.capturedClipboardFileRoot
 import com.crosspaste.task.TaskSubmitter
 import com.crosspaste.transport.bluetooth.BluetoothTransportController
 import com.crosspaste.ui.devices.DefaultPairingV3UiController
@@ -129,6 +134,8 @@ fun desktopNetworkModule(
         }
         single { ClipboardInvitationSender(get(), get()) }
         single { ClipboardHistoryService(get(), get<AppInfo>().appInstanceId, get(), get()) }
+        single { ClipboardMembershipStore(get(), get()) }
+        single { ClipboardFileManifestVerifier(get<ClipboardMembershipStore>()::signingKey) }
         single { ClipboardHistoryPuller(get(), get()) }
         single {
             val reader = get<PasteItemReader>()
@@ -145,6 +152,12 @@ fun desktopNetworkModule(
             )
         }
         single { ClipboardPayloadTransfer(get()) }
+        single {
+            val paths = get<UserDataPathProvider>()
+            DesktopClipboardFileSnapshotter(get<AppInfo>().appInstanceId, get(), get(), get()) { capture, item, root ->
+                capturedClipboardFileRoot(capture, item, root, paths)
+            }
+        }
         single {
             DesktopClipboardBlobStore(
                 get<AppPathProvider>().pasteUserPath.resolve("shared-clipboard-blobs").toNioPath(),

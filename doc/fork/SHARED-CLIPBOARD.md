@@ -145,6 +145,20 @@ rejection, cache repair and range/digest validation. This primitive is not yet
 called by capture or exposed over the network: signed manifest authorization,
 network retrieval and native file/image landing still need to be connected.
 
+## Original-author file manifests
+
+File manifests bind every primary and alternate file representation to its original
+signed capture, including empty directories and parent relationships. The original
+author signs a separate domain containing the metadata hash and content-addressed
+blob descriptors. A relay cannot replace that signature with its own identity.
+The local snapshotter verifies both the device ID and approved signing key before
+resolving any local source path, then verifies captured sizes and hashes while
+copying bytes into private storage. Caller budgets are checked before file lookup.
+Logical remote names are metadata, not trusted destination filesystem paths.
+
+These services are source-only. Durable manifest storage, authorized network blob
+retrieval, safe destination landing and runtime activation remain unfinished.
+
 ## Native history projection
 
 `ClipboardHistoryMaterializer` verifies the journal and frozen payload again before
