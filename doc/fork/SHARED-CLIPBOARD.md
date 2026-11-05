@@ -164,8 +164,15 @@ Snapshots reuse a saved manifest only when every referenced private blob still
 verifies; moving or editing the original then does not change the copied content.
 Caller byte budgets still apply before cached content can be used.
 
-These services are source-only. Authorized network blob retrieval, safe destination
-landing and runtime activation remain unfinished.
+The source server exposes authenticated, encrypted `file-manifest` and `file-blob`
+requests. Each request requires an enabled clipboard, paired approved requester,
+verified original journal authors and a current undeleted capture head. Retained
+historical events alone do not grant file access. Manifests transfer in bounded
+chunks; blob range requests must name a digest in that capture's original-signed
+manifest. A relay serves the original signature instead of signing as the author.
+
+These services are source-only. The receiver still needs complete manifest/blob
+assembly and whole-file verification, safe destination landing and runtime activation.
 
 ## Native history projection
 

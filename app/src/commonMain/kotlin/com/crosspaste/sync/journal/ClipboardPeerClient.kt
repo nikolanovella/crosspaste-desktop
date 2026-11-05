@@ -52,7 +52,18 @@ class PasteClipboardPeerWire(
         path: String,
         proof: ClipboardPeerProof,
     ): ClipboardPeerResponse {
-        require(path in setOf("identity", "invitation", "invitation/status", "history", "payload"))
+        require(
+            path in
+                setOf(
+                    "identity",
+                    "invitation",
+                    "invitation/status",
+                    "history",
+                    "payload",
+                    "file-manifest",
+                    "file-blob",
+                ),
+        )
         val address = endpoint(peer)
         val response =
             client.post(
@@ -117,6 +128,20 @@ class ClipboardPeerClient(
         query: ClipboardPayloadRequest,
     ): VerifiedClipboardPeerReply =
         exchange(peer, clipboard, ClipboardPeerOperation.PAYLOAD, "payload", Json.encodeToString(query))
+
+    suspend fun fileManifest(
+        peer: String,
+        clipboard: String,
+        query: ClipboardManifestRequest,
+    ): VerifiedClipboardPeerReply =
+        exchange(peer, clipboard, ClipboardPeerOperation.FILE_MANIFEST, "file-manifest", Json.encodeToString(query))
+
+    suspend fun fileBlob(
+        peer: String,
+        clipboard: String,
+        query: ClipboardBlobRequest,
+    ): VerifiedClipboardPeerReply =
+        exchange(peer, clipboard, ClipboardPeerOperation.FILE_BLOB, "file-blob", Json.encodeToString(query))
 
     private suspend fun exchange(
         peer: String,

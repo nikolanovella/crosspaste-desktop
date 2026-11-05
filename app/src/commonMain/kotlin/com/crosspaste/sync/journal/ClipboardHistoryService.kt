@@ -54,6 +54,45 @@ class ClipboardHistoryService(
 
     suspend fun cursor(clipboard: String): Map<String, Long> = mutex.withLock { open(clipboard).cursor() }
 
+    /** File access requires a current live head, not merely an old event retained in history. */
+    suspend fun fileContext(
+        verified: VerifiedClipboardPeerRequest,
+        event: ClipboardEventId,
+    ): ClipboardFileContext =
+        mutex.withLock {
+            val request = verified.request
+            require(
+                request.target == localDevice &&
+                    request.operation in
+                    setOf(
+                        ClipboardPeerOperation.FILE_MANIFEST,
+                        ClipboardPeerOperation.FILE_BLOB,
+                    ),
+            )
+            requireMember(request.clipboard, request.sender)
+            val store = SqlSignedClipboardStore(database, request.clipboard)
+            val snapshot = store.load()
+            open(request.clipboard, store, snapshot)
+            val head =
+                ClipboardJournal(
+                    localDevice,
+                    ClipboardJournalSnapshot(
+                        request.clipboard,
+                        snapshot.changes.map { it.change },
+                    ),
+                ) {}.allHeads().singleOrNull { it.id == event && !it.deleted }
+            requireNotNull(head) { "File capture is no longer active in this clipboard" }
+            val signed = snapshot.changes.single { it.change.id == head.id }
+            val hash = requireNotNull(head.contentHash)
+            val metadata =
+                requireNotNull(
+                    database.sharedClipboardDatabaseQueries
+                        .getPayload(request.clipboard, hash)
+                        .executeAsOneOrNull(),
+                )
+            ClipboardFileContext(signed, metadata.encodeToByteArray())
+        }
+
     suspend fun snapshot(clipboard: String): SignedClipboardSnapshot =
         mutex.withLock {
             val store = SqlSignedClipboardStore(database, clipboard)
@@ -194,6 +233,11 @@ class ClipboardHistoryService(
         )
     }
 }
+
+class ClipboardFileContext(
+    val event: SignedClipboardChange,
+    val metadata: ByteArray,
+)
 
 /** One bounded background step; callers repeat while progress is made and resume after reconnects. */
 class ClipboardHistoryPuller(

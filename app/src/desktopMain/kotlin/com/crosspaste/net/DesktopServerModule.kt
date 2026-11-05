@@ -10,6 +10,7 @@ import com.crosspaste.net.plugin.ServerDecryptionPluginFactory
 import com.crosspaste.net.plugin.ServerEncryptPluginFactory
 import com.crosspaste.net.routing.ClipboardPeerIdentity
 import com.crosspaste.net.routing.SyncRoutingApi
+import com.crosspaste.net.routing.clipboardFileRouting
 import com.crosspaste.net.routing.clipboardHistoryRouting
 import com.crosspaste.net.routing.clipboardIdentityRouting
 import com.crosspaste.net.ws.WsMessageHandler
@@ -25,6 +26,7 @@ import com.crosspaste.secure.SecureStore
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.PendingKeyExchangeStore
 import com.crosspaste.sync.PushSessionManager
+import com.crosspaste.sync.journal.ClipboardFileTransferService
 import com.crosspaste.sync.journal.ClipboardHistoryService
 import com.crosspaste.sync.journal.ClipboardInvitationService
 import com.crosspaste.sync.journal.ClipboardPeerAuthentication
@@ -62,6 +64,7 @@ class DesktopServerModule(
     private val clipboardPeerAuth: ClipboardPeerAuthentication? = null,
     private val clipboardInvitations: ClipboardInvitationService? = null,
     private val clipboardHistory: ClipboardHistoryService? = null,
+    private val clipboardFiles: ClipboardFileTransferService? = null,
 ) : DefaultServerModule(
         appControl,
         appInfo,
@@ -121,6 +124,7 @@ class DesktopServerModule(
                         identity = clipboardIdentity,
                     )
                     clipboardHistory?.let { clipboardHistoryRouting(clipboardLocalDevice, authentication, it) }
+                    clipboardFiles?.let { clipboardFileRouting(clipboardLocalDevice, authentication, it) }
                 }
             }
         }

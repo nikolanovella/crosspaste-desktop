@@ -83,6 +83,7 @@ import com.crosspaste.sync.SyncManager
 import com.crosspaste.sync.SyncResolver
 import com.crosspaste.sync.SyncResolverApi
 import com.crosspaste.sync.journal.ClipboardFileManifestVerifier
+import com.crosspaste.sync.journal.ClipboardFileTransferService
 import com.crosspaste.sync.journal.ClipboardHistoryMaterializer
 import com.crosspaste.sync.journal.ClipboardHistoryPuller
 import com.crosspaste.sync.journal.ClipboardHistoryService
@@ -153,6 +154,13 @@ fun desktopNetworkModule(
             )
         }
         single { ClipboardPayloadTransfer(get()) }
+        single {
+            val manifests = get<DesktopClipboardFileManifestStore>()
+            val blobs = get<DesktopClipboardBlobStore>()
+            ClipboardFileTransferService(get(), get(), manifests::load) { blob, offset, limit ->
+                blobs.readChunk(blob.sha256, offset, limit)
+            }
+        }
         single {
             val paths = get<UserDataPathProvider>()
             DesktopClipboardFileSnapshotter(
@@ -324,6 +332,7 @@ fun desktopNetworkModule(
                 clipboardPeerAuth = get(),
                 clipboardInvitations = get(),
                 clipboardHistory = get(),
+                clipboardFiles = get(),
                 wsSessionManager = get(),
             )
         }
