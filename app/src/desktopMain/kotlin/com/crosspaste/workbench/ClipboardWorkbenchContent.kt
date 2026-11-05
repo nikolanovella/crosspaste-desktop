@@ -241,13 +241,15 @@ private fun EditorContent(
                                     .draggable(
                                         orientation = Orientation.Vertical,
                                         state = rememberDraggableState { dragY += it },
-                                        startDragImmediately = true,
+                                        startDragImmediately = false,
                                         onDragStarted = { dragY = handleTop + it.y },
                                         onDragStopped = {
+                                            val visibleBounds = bounds.filterValues { it.height > 0f && it.width > 0f }
+                                            if (visibleBounds.isEmpty()) return@draggable
                                             val destination =
                                                 clipboardDropTarget(
                                                     state.document.blocks.map { it.id },
-                                                    bounds.mapValues { it.value.center.y },
+                                                    visibleBounds.mapValues { it.value.center.y },
                                                     dragY,
                                                 )
                                             controller.move(
