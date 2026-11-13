@@ -303,7 +303,7 @@ private fun initJvmArgs(
     buildFullPlatform: Boolean = false,
 ) {
     // Add system properties that need to be set for all platforms
-    val appEnv = project.findProperty("appEnv")?.toString() ?: "DEVELOPMENT"
+    val appEnv = project.findProperty("appEnv")?.toString() ?: if (project.findProperty("workbenchFork") == "true") "BETA" else "DEVELOPMENT"
     val globalListener = project.findProperty("globalListener")?.toString() ?: "true"
     if (project.findProperty("workbenchFork")?.toString() == "true") {
         jvmArgs(arrayOf("-Dcrosspaste.workbenchFork=true"))
@@ -513,7 +513,7 @@ compose.desktop {
             // includeAllModules = true
             modules("jdk.charsets", "java.net.http")
 
-            val appEnv = project.findProperty("appEnv")?.toString() ?: "DEVELOPMENT"
+            val appEnv = project.findProperty("appEnv")?.toString() ?: if (project.findProperty("workbenchFork") == "true") "BETA" else "DEVELOPMENT"
 
             val jvmArgsLambda: (Array<String>) -> Unit = { args ->
                 args.forEach {

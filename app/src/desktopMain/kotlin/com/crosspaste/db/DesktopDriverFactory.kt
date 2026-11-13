@@ -67,9 +67,8 @@ class DesktopDriverFactory(
 
             if (version == 0L) {
                 schema.create(driver).value
-            }
-
-            if (version < schema.version) {
+                driver.setVersion(schema.version)
+            } else if (version < schema.version) {
                 schema.migrate(driver, version, schema.version).value
                 driver.setVersion(schema.version)
             }
