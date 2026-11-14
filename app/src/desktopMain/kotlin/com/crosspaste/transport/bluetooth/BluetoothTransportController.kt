@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -80,7 +81,12 @@ internal class BluetoothTransportController(
             val next = Connection(peerId)
             current = next
             publish(next, "Preparing Bluetooth")
-            next.job = scope.launch(start = CoroutineStart.LAZY) { runConnection(next, address) }
+            next.job =
+                scope.launch(start = CoroutineStart.LAZY) {
+                    while (runConnection(next, address)) {
+                        delay(2.seconds)
+                    }
+                }
             next.job.start()
         }
     }
@@ -88,7 +94,8 @@ internal class BluetoothTransportController(
     private suspend fun runConnection(
         connection: Connection,
         address: String?,
-    ) {
+    ): Boolean {
+        var rearm = false
         var session: NativeBluetoothSession? = null
         var route: PeerTransportRoutes.Lease? = null
         try {
@@ -137,7 +144,8 @@ internal class BluetoothTransportController(
             syncManager.fastReconnect(connection.peerId)
             publish(connection, "Bluetooth link ready — CrossPaste is verifying sync")
             session.awaitClosed()
-            publish(connection, "Bluetooth disconnected", active = false)
+            rearm = platform.isMacos()
+            publish(connection, if (rearm) "Restarting Bluetooth listener" else "Bluetooth disconnected", active = rearm)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -154,11 +162,14 @@ internal class BluetoothTransportController(
             session?.close()
             synchronized(lock) {
                 if (current === connection) {
-                    current = null
+                    connection.session = null
+                    connection.route = null
+                    if (!rearm) current = null
                     syncManager.fastReconnect(connection.peerId)
                 }
             }
         }
+        return rearm
     }
 
     private fun publish(
