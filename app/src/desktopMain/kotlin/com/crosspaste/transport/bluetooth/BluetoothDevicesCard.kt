@@ -180,9 +180,10 @@ internal fun BluetoothDevicesCard() {
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
+            val hasAddress = !windows || address.isNotBlank()
             Row(horizontalArrangement = Arrangement.spacedBy(small)) {
                 Button(
-                    enabled = !connection.active && selected != null && (!windows || address.isNotBlank()),
+                    enabled = !connection.active && selected != null && !needsVerification && hasAddress,
                     onClick = {
                         selected?.let {
                             val selectedAddress = if (platform.isWindows()) address.trim() else null
