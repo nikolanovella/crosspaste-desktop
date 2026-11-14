@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.crosspaste.config.DesktopConfigManager
+import com.crosspaste.db.sync.SyncState
 import com.crosspaste.platform.Platform
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.ui.settings.SettingSectionCard
@@ -170,10 +171,18 @@ internal fun BluetoothDevicesCard() {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Text(connection.message, style = MaterialTheme.typography.bodySmall)
+            val needsVerification = selected?.connectState == SyncState.UNVERIFIED
+            Text(
+                if (needsVerification && !connection.active) {
+                    "Verify this device in CrossPaste Devices before using Bluetooth."
+                } else {
+                    connection.message
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(small)) {
                 Button(
-                    enabled = !connection.active && selected != null && (!platform.isWindows() || address.isNotBlank()),
+                    enabled = !connection.active && selected != null && (!windows || address.isNotBlank()),
                     onClick = {
                         selected?.let {
                             val selectedAddress = if (platform.isWindows()) address.trim() else null
