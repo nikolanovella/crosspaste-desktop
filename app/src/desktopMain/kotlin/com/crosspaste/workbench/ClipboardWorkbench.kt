@@ -81,6 +81,7 @@ class ClipboardWorkbench(
     private var target: (() -> Boolean)? = null
     private var operation: Job? = null
     private var persistJob: Job? = null
+    private val draftLoadMutex = Mutex()
     private var loaded = false
     private val persistMutex = Mutex()
     private val undo = ArrayDeque<ClipboardDocument>()
@@ -300,17 +301,19 @@ class ClipboardWorkbench(
     ) {
         if (captureTarget) target = native.captureTarget()
         mainCoroutineDispatcher.launch {
-            if (!loaded) {
-                loaded = true
-                val saved =
-                    withContext(ioDispatcher) {
-                        runCatching {
-                            json.decodeFromString<ClipboardDocument>(
-                                draftPath().toFile().readText(),
-                            )
-                        }.getOrNull()
-                    }
-                if (saved != null) mutableState.value = state.value.copy(document = saved)
+            draftLoadMutex.withLock {
+                if (!loaded) {
+                    val saved =
+                        withContext(ioDispatcher) {
+                            runCatching {
+                                json.decodeFromString<ClipboardDocument>(
+                                    draftPath().toFile().readText(),
+                                )
+                            }.getOrNull()
+                        }
+                    if (saved != null) mutableState.value = state.value.copy(document = saved)
+                    loaded = true
+                }
             }
             if (historyClip != null) append(historyClip)
             if (fromSelection &&
