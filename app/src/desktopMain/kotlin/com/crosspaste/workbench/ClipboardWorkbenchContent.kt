@@ -1,8 +1,5 @@
 package com.crosspaste.workbench
 
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -35,6 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.text.style.TextOverflow
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.rounded.Redo
@@ -224,8 +224,7 @@ private fun EditorContent(
             }
             items(state.document.blocks, key = { it.id }) { block ->
                 DisposableEffect(block.id) { onDispose { bounds.remove(block.id) } }
-                var dragY by remember(block.id) { mutableStateOf(0f) }
-                var handleTop by remember(block.id) { mutableStateOf(0f) }
+                var handleCoordinates by remember(block.id) { mutableStateOf<LayoutCoordinates?>(null) }
                 val original = state.document.originals.firstOrNull { it.id == block.originalId }
                 SettingSectionCard(Modifier.onGloballyPositioned { bounds[block.id] = it.boundsInRoot() }) {
                     Column(Modifier.padding(small), verticalArrangement = Arrangement.spacedBy(small)) {
@@ -237,27 +236,36 @@ private fun EditorContent(
                                 "⠿ Drag${if (block.groupId != null) " · Group" else ""}",
                                 Modifier
                                     .padding(small)
-                                    .onGloballyPositioned { handleTop = it.boundsInRoot().top }
-                                    .draggable(
-                                        orientation = Orientation.Vertical,
-                                        state = rememberDraggableState { dragY += it },
-                                        startDragImmediately = false,
-                                        onDragStarted = { dragY = handleTop + it.y },
-                                        onDragStopped = {
+                                    .onGloballyPositioned { handleCoordinates = it }
+                                    .pointerInput(block.id, state.selected, state.document.blocks) {
+                                        detectDragGestures(orientationLock = null, onDragEnd = drop@{ release ->
+                                            val dragY = handleCoordinates?.takeIf { it.isAttached }
+                                                ?.localToRoot(release.position)?.y ?: return@drop
+                                            if (!dragY.isFinite()) return@drop
+                                            val selection = if (block.id in state.selected) state.selected else setOf(block.id)
+                                            val blocks = state.document.blocks
+                                            val groups = blocks.filter { it.id in selection }.mapNotNull { it.groupId }.toSet()
+                                            val remaining = blocks.filterNot { it.id in selection || it.groupId in groups }
                                             val visibleBounds = bounds.filterValues { it.height > 0f && it.width > 0f }
-                                            if (visibleBounds.isEmpty()) return@draggable
+                                            if (remaining.none { it.id in visibleBounds }) return@drop
+                                            val targets = remaining.groupBy { it.groupId ?: it.id }.values
+                                            val targetCenters = targets.mapNotNull { cards ->
+                                                val visible = cards.mapNotNull { visibleBounds[it.id] }
+                                                if (visible.isEmpty()) null else cards.first().id to
+                                                    ((visible.minOf { it.top } + visible.maxOf { it.bottom }) / 2f)
+                                            }.toMap()
                                             val destination =
                                                 clipboardDropTarget(
-                                                    state.document.blocks.map { it.id },
-                                                    visibleBounds.mapValues { it.value.center.y },
+                                                    targets.map { it.first().id },
+                                                    targetCenters,
                                                     dragY,
                                                 )
                                             controller.move(
-                                                if (block.id in state.selected) state.selected else setOf(block.id),
+                                                selection,
                                                 destination,
                                             )
-                                        },
-                                    ),
+                                        }) { change, _ -> change.consume() }
+                                    },
                             )
                         }
                         Text(original?.source ?: "New block", style = MaterialTheme.typography.labelSmall)
