@@ -1,0 +1,109 @@
+name: Clipboard Workbench builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      macos_only:
+        description: Build only the two Mac architectures (for runner-capacity retries)
+        type: boolean
+        default: false
+  push:
+    branches: [feature/clipboard-workbench]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workbench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        # ARM glass APIs require the macOS 26 SDK; keep both Mac architectures.
+        include: >-
+          ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.macos_only &&
+          '[{"runner":"macos-26","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]' ||
+          '[{"runner":"windows-latest","package":"Windows-x64"},{"runner":"macos-26","package":"macOS-AppleSilicon"},{"runner":"macos-26-intel","package":"macOS-Intel"}]') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'refs/heads/feature/clipboard-workbench' || github.sha }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build and check native Bluetooth adapters without using the radio
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cmake -S native/bluetooth -B build/native-bluetooth -A x64
+          else
+            cmake -S native/bluetooth -B build/native-bluetooth -DCMAKE_BUILD_TYPE=Release
+          fi
+          cmake --build build/native-bluetooth --config Release
+          ctest --test-dir build/native-bluetooth --build-config Release --output-on-failure
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            mkdir -p app/resources/windows-x64/bluetooth
+            cp build/native-bluetooth/Release/WindowsBluetoothTransport.exe app/resources/windows-x64/bluetooth/
+          else
+            if [[ "$(uname -m)" == "arm64" ]]; then ARCH=arm64; else ARCH=x64; fi
+            mkdir -p "app/resources/macos-$ARCH/bluetooth"
+            cp build/native-bluetooth/MacosBluetoothTransport "app/resources/macos-$ARCH/bluetooth/"
+            chmod +x "app/resources/macos-$ARCH/bluetooth/MacosBluetoothTransport"
+          fi
+      - name: Check style, run regression tests, and build portable app
+        shell: bash
+        run: |
+          ./gradlew ktlintCheck
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.workbench.*' --tests 'com.crosspaste.listener.*' --tests 'com.crosspaste.ui.model.PastePanelViewModelTest' --tests 'com.crosspaste.cli.CliRoutingTest.local UI activation*' --tests 'com.crosspaste.cli.CliRoutingTest.headless instance cannot*'
+          mkdir -p app/build/verification/workbench
+          cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/workbench/
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.transport.bluetooth.*' --tests 'com.crosspaste.utils.PeerTransportRoutesTest' --tests 'com.crosspaste.net.TelnetHelperTest' --tests 'com.crosspaste.sync.SyncResolverTest' --tests 'com.crosspaste.sync.GeneralSyncManagerTest' -PintegrationTests
+          mkdir -p app/build/verification/bluetooth
+          cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/bluetooth/
+          ./gradlew :app:desktopTest --tests 'com.crosspaste.sync.journal.*' --tests 'com.crosspaste.paste.PasteReleaseService*Test' --tests 'com.crosspaste.task.DeletePasteTaskExecutorTest' --tests 'com.crosspaste.net.plugin.*' --tests 'com.crosspaste.net.clientapi.SafeApiCallTest' --tests 'com.crosspaste.net.SyncTest' -PintegrationTests
+          mkdir -p app/build/verification/shared-clipboard
+          cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/shared-clipboard/
+          ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
+      - name: Archive portable app with executable permissions
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            /usr/bin/codesign --force --deep --sign - app/build/compose/binaries/main/app/crosspaste.app
+          fi
+          mkdir -p workbench-package
+          tar -czf "workbench-package/CrossPaste-Workbench-${{ matrix.package }}.tar.gz" -C app/build/compose/binaries/main/app .
+          mkdir -p bluetooth-native-package
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cp build/native-bluetooth/Release/WindowsBluetoothTransport.exe bluetooth-native-package/
+          else
+            cp build/native-bluetooth/MacosBluetoothTransport bluetooth-native-package/
+          fi
+      - name: Upload platform app
+        uses: actions/upload-artifact@v6
+        with:
+          name: CrossPaste-Workbench-${{ matrix.package }}
+          path: workbench-package/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Workbench-tests-${{ matrix.package }}
+          path: app/build/verification/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload experimental native Bluetooth adapter
+        uses: actions/upload-artifact@v6
+        with:
+          name: CrossPaste-Bluetooth-Experimental-${{ matrix.package }}
+          path: bluetooth-native-package/
+          if-no-files-found: error
+          retention-days: 14
