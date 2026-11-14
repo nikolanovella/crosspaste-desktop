@@ -32,6 +32,8 @@ class ClipboardDocumentTest {
                     .map { it.id }
                     .toSet(),
             )
+        val inserted = grouped.move(setOf(grouped.blocks[1].id), grouped.blocks[3].id)
+        assertEquals(listOf("c", "a", "b", "d"), inserted.blocks.map { it.text })
         val moved = grouped.move(setOf(grouped.blocks[1].id), null)
         assertEquals(listOf("c", "d", "a", "b"), moved.blocks.map { it.text })
         assertEquals(document.originals, moved.originals)
