@@ -76,6 +76,10 @@ internal class NativeBluetoothSession internal constructor(
             status == "BT_CONNECTED" -> connected.complete(Unit)
             status == "BT_LISTENING" -> publish(BluetoothNativeState.LISTENING)
             status == "BT_CONNECT_FAILED:10049" -> connected.completeExceptionally(BluetoothServiceUnavailableException())
+            status == "BT_SERVICE_FAILED" ->
+                connected.completeExceptionally(IOException("Bluetooth service publication failed"))
+            status == "BT_LISTENER_FAILED" ->
+                connected.completeExceptionally(IOException("Bluetooth listener registration failed"))
             status.startsWith("BT_") && (status.contains("FAILED") || status.contains("UNAVAILABLE")) -> {
                 // Never relay arbitrary native stderr, device addresses or payload.
                 val code = status.substringAfter(':', "").toIntOrNull()
