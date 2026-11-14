@@ -142,7 +142,11 @@ internal class BluetoothTransportController(
             throw error
         } catch (error: Exception) {
             // No raw native stderr, device addresses or clipboard payloads in the UI.
-            val message = if (error is IllegalArgumentException) error.message else "Bluetooth could not connect"
+            val message =
+                when (error) {
+                    is IllegalArgumentException, is BluetoothServiceUnavailableException -> error.message
+                    else -> "Bluetooth could not connect"
+                }
             publish(connection, message ?: "Bluetooth could not connect", active = false)
         } finally {
             route?.release()

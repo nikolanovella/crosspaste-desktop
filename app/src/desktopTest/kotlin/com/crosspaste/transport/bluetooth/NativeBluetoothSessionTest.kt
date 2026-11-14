@@ -151,4 +151,20 @@ class NativeBluetoothSessionTest {
                 }
             }
         }
+
+    @Test
+    fun `unreachable Mac service reports how to start its listener`(): Unit =
+        runBlocking {
+            withTimeout(10.seconds) {
+                val (native, remote) = pair()
+                remote.use {
+                    val process = OwnedProcess(native, "BT_CONNECT_FAILED:10049\n")
+                    NativeBluetoothSession(process, 9, true) {}.use { session ->
+                        assertFailsWith<BluetoothServiceUnavailableException> { session.start() }
+                        session.awaitClosed()
+                        assertFalse(process.isAlive)
+                    }
+                }
+            }
+        }
 }

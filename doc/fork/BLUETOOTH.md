@@ -19,7 +19,7 @@ connecting keeps the link running; Disconnect or quitting CrossPaste stops it.
    or silently approve new trust.
 4. On the Mac's Devices page, select the Windows computer and choose **Listen
    for Windows**. Approve macOS Bluetooth permission yourself if requested.
-5. On Windows, select the Mac, enter its Bluetooth address, and choose **Connect**.
+5. On Windows, select the Mac in CrossPaste, then use **Choose a paired Bluetooth device** to fill in its address. Enter the address manually if the chooser cannot read paired devices. Choose **Connect**.
 6. The link checks the selected CrossPaste identity, then the existing encrypted
    resolver authenticates the peer. The normal device row reports sync state.
 
@@ -78,3 +78,17 @@ Both Mac jobs in that run failed to acquire hosted runners. Mac-only retry
 pools; both again failed before executing any build step. GitHub's annotations
 explicitly report runner acquisition failure and arm64 capacity constraints.
 This is an outstanding build-verification gap, not a successful Mac build.
+
+### Diagnosing a paired Mac that does not accept a connection
+
+On Windows, run the bundled helper with `--inspect` and check that the Mac
+appears as paired and remembered. Pairing confirms the OS relationship.
+CrossPaste still needs to publish its own RFCOMM service on macOS.
+
+Check the Mac helper's runtime status before retrying from Windows.
+`BT_LISTENING` means the helper published the SDP record and registered
+the incoming-channel callback. `BT_SERVICE_FAILED` indicates publication
+failed. `BT_LISTENER_FAILED` indicates callback registration failed.
+Check the running app's helper first, since a second listener would compete
+for the service. `BT_CONNECTED` confirms a channel opened. A successful
+clipboard transfer still requires the app-level exchange over that channel.
