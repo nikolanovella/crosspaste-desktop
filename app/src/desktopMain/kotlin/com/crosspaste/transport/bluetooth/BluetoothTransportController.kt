@@ -145,7 +145,11 @@ internal class BluetoothTransportController(
             publish(connection, "Bluetooth link ready — CrossPaste is verifying sync")
             session.awaitClosed()
             rearm = platform.isMacos()
-            publish(connection, if (rearm) "Restarting Bluetooth listener" else "Bluetooth disconnected", active = rearm)
+            publish(
+                connection,
+                if (rearm) "Restarting Bluetooth listener" else "Bluetooth disconnected",
+                active = rearm,
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {

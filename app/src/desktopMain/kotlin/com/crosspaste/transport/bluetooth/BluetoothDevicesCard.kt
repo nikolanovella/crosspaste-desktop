@@ -66,7 +66,9 @@ internal fun BluetoothDevicesCard() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             TextButton(onClick = { menuOpen = true }, enabled = !connection.active && candidates.isNotEmpty()) {
-                Text(selected?.getDeviceDisplayName() ?: "No paired desktop device")
+                val emptyDeviceLabel =
+                    if (platform.isWindows()) "No Mac in CrossPaste Devices" else "No Windows PC in CrossPaste Devices"
+                Text(selected?.getDeviceDisplayName() ?: emptyDeviceLabel)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     candidates.forEach { device ->
                         DropdownMenuItem(
