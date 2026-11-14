@@ -474,7 +474,7 @@ class ClipboardWorkbench(
             withTimeoutOrNull(1500.milliseconds) {
                 while (!restore()) delay(50.milliseconds)
                 delay(100.milliseconds)
-                true
+                restore()
             } ?: false
         }
     }
