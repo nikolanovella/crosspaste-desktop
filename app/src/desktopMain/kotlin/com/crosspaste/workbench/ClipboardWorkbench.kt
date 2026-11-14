@@ -309,7 +309,10 @@ class ClipboardWorkbench(
                                 json.decodeFromString<ClipboardDocument>(
                                     draftPath().toFile().readText(),
                                 )
-                            }.getOrNull()
+                            }.getOrElse { error ->
+                                if (error is CancellationException) throw error
+                                null
+                            }
                         }
                     if (saved != null) mutableState.value = state.value.copy(document = saved)
                     loaded = true
