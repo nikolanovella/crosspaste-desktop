@@ -67,6 +67,8 @@ data class DesktopAppConfig(
     val enableClipboardRelay: Boolean = false,
     override val enableAutoPastePull: Boolean = true,
     override val useSharedClipboardForPaste: Boolean = true,
+    val bluetoothPeerId: String = "",
+    val bluetoothPeerAddress: String = "",
     override val enableAutoPullWriteClipboard: Boolean = false,
     // Sync content type controls
     override val enableSyncText: Boolean = true,
@@ -191,6 +193,8 @@ data class DesktopAppConfig(
                 if (key == "useSharedClipboardForPaste") toBoolean(value) else useSharedClipboardForPaste,
             enableAutoPullWriteClipboard =
                 if (key == "enableAutoPullWriteClipboard") toBoolean(value) else enableAutoPullWriteClipboard,
+            bluetoothPeerId = if (key == "bluetoothPeerId") toString(value) else bluetoothPeerId,
+            bluetoothPeerAddress = if (key == "bluetoothPeerAddress") toString(value) else bluetoothPeerAddress,
             ocrLanguage = if (key == "ocrLanguage") toString(value) else ocrLanguage,
             useManualProxy = if (key == "useManualProxy") toBoolean(value) else useManualProxy,
             proxyType = if (key == "proxyType") toString(value) else proxyType,

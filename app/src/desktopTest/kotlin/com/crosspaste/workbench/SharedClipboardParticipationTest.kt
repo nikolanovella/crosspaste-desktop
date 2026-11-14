@@ -108,4 +108,18 @@ class SharedClipboardParticipationTest {
                 .useSharedClipboardForPaste,
         )
     }
+
+    @Test
+    fun `Bluetooth selection survives serialization and older settings have no selection`() {
+        val old = Json.decodeFromString<DesktopAppConfig>("""{"language":"en"}""")
+        assertEquals("", old.bluetoothPeerId)
+        assertEquals("", old.bluetoothPeerAddress)
+        val selected =
+            old
+                .copy(key = "bluetoothPeerId", value = "mac-peer")
+                .copy(key = "bluetoothPeerAddress", value = "02:11:22:33:44:55")
+        val restored = Json.decodeFromString<DesktopAppConfig>(Json.encodeToString(selected))
+        assertEquals("mac-peer", restored.bluetoothPeerId)
+        assertEquals("02:11:22:33:44:55", restored.bluetoothPeerAddress)
+    }
 }

@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.crosspaste.config.DesktopConfigManager
 import com.crosspaste.platform.Platform
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.ui.settings.SettingSectionCard
@@ -37,12 +38,16 @@ internal fun BluetoothDevicesCard() {
     if (!platform.isWindows() && !platform.isMacos()) return
     val controller = koinInject<BluetoothTransportController>()
     val syncManager = koinInject<SyncManager>()
+    val configManager = koinInject<DesktopConfigManager>()
+    val config = configManager.getCurrentConfig()
     val devices by syncManager.realTimeSyncRuntimeInfos.collectAsState()
     val connection by controller.state.collectAsState()
     val candidates = devices.filter { if (platform.isWindows()) it.platform.isMacos() else it.platform.isWindows() }
-    var selectedId by remember { mutableStateOf<String?>(null) }
+    var selectedId by remember { mutableStateOf(config.bluetoothPeerId) }
     val selected = candidates.firstOrNull { it.appInstanceId == selectedId } ?: candidates.firstOrNull()
-    var address by remember(selected?.appInstanceId) { mutableStateOf("") }
+    var address by remember(selected?.appInstanceId) {
+        mutableStateOf(config.bluetoothPeerAddress.takeIf { selected?.appInstanceId == config.bluetoothPeerId }.orEmpty())
+    }
     var menuOpen by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
@@ -168,7 +173,12 @@ internal fun BluetoothDevicesCard() {
                     enabled = !connection.active && selected != null && (!platform.isWindows() || address.isNotBlank()),
                     onClick = {
                         selected?.let {
-                            controller.connect(it.appInstanceId, if (platform.isWindows()) address.trim() else null)
+                            val selectedAddress = if (platform.isWindows()) address.trim() else null
+                            configManager.updateConfig(
+                                listOf("bluetoothPeerId", "bluetoothPeerAddress"),
+                                listOf(it.appInstanceId, selectedAddress.orEmpty()),
+                            )
+                            controller.connect(it.appInstanceId, selectedAddress)
                         }
                     },
                 ) {
