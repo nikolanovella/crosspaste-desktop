@@ -92,3 +92,10 @@ failed. `BT_LISTENER_FAILED` indicates callback registration failed.
 Check the running app's helper first, since a second listener would compete
 for the service. `BT_CONNECTED` confirms a channel opened. A successful
 clipboard transfer still requires the app-level exchange over that channel.
+
+If Windows reports `BT_CONNECT_FAILED:10049` while the Mac is paired,
+check for `BT_LISTENING` on the Mac before pairing again. Record the Mac
+helper status from the same attempt. If it is listening, retry the
+connection and check for `BT_CONNECTED` on both devices. Then copy a
+disposable text sample with Wi-Fi unavailable and verify it appears in
+the receiving clipboard history. Repeat in the opposite direction.
