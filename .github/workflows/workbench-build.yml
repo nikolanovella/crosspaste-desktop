@@ -69,6 +69,16 @@ jobs:
           mkdir -p app/build/verification/shared-clipboard
           cp app/build/test-results/desktopTest/TEST-*.xml app/build/verification/shared-clipboard/
           ./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
+      - name: Verify packaged native Bluetooth adapter
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            expected=build/native-bluetooth/Release/WindowsBluetoothTransport.exe
+          else
+            expected=build/native-bluetooth/MacosBluetoothTransport
+          fi
+          packaged=$(find app/build/compose/binaries/main/app -type f -name "$(basename "$expected")")
+          cmp "$expected" "$packaged"
       - name: Archive portable app with executable permissions
         shell: bash
         run: |
