@@ -144,6 +144,7 @@ internal class BluetoothTransportController(
             // No raw native stderr, device addresses or clipboard payloads in the UI.
             val message =
                 when (error) {
+                    is BluetoothListenerSetupException -> error.message
                     is IllegalArgumentException, is BluetoothServiceUnavailableException -> error.message
                     else -> "Bluetooth could not connect"
                 }

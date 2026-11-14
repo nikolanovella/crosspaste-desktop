@@ -1,5 +1,6 @@
 package com.crosspaste.workbench
 
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -30,11 +31,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.text.style.TextOverflow
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.rounded.Redo
@@ -238,33 +238,70 @@ private fun EditorContent(
                                     .padding(small)
                                     .onGloballyPositioned { handleCoordinates = it }
                                     .pointerInput(block.id, state.selected, state.document.blocks) {
-                                        detectDragGestures(orientationLock = null, onDragEnd = drop@{ release ->
-                                            val dragY = handleCoordinates?.takeIf { it.isAttached }
-                                                ?.localToRoot(release.position)?.y ?: return@drop
-                                            if (!dragY.isFinite()) return@drop
-                                            val selection = if (block.id in state.selected) state.selected else setOf(block.id)
-                                            val blocks = state.document.blocks
-                                            val groups = blocks.filter { it.id in selection }.mapNotNull { it.groupId }.toSet()
-                                            val remaining = blocks.filterNot { it.id in selection || it.groupId in groups }
-                                            val visibleBounds = bounds.filterValues { it.height > 0f && it.width > 0f }
-                                            if (remaining.none { it.id in visibleBounds }) return@drop
-                                            val targets = remaining.groupBy { it.groupId ?: it.id }.values
-                                            val targetCenters = targets.mapNotNull { cards ->
-                                                val visible = cards.mapNotNull { visibleBounds[it.id] }
-                                                if (visible.isEmpty()) null else cards.first().id to
-                                                    ((visible.minOf { it.top } + visible.maxOf { it.bottom }) / 2f)
-                                            }.toMap()
-                                            val destination =
-                                                clipboardDropTarget(
-                                                    targets.map { it.first().id },
-                                                    targetCenters,
-                                                    dragY,
+                                        detectDragGestures(
+                                            orientationLock = null,
+                                            onDragEnd = drop@{ release ->
+                                                val dragY =
+                                                    handleCoordinates
+                                                        ?.takeIf { it.isAttached }
+                                                        ?.localToRoot(release.position)
+                                                        ?.y ?: return@drop
+                                                if (!dragY.isFinite()) return@drop
+                                                val selection =
+                                                    if (block.id in
+                                                        state.selected
+                                                    ) {
+                                                        state.selected
+                                                    } else {
+                                                        setOf(block.id)
+                                                    }
+                                                val blocks = state.document.blocks
+                                                val groups =
+                                                    blocks
+                                                        .filter { it.id in selection }
+                                                        .mapNotNull { it.groupId }
+                                                        .toSet()
+                                                val remaining =
+                                                    blocks.filterNot {
+                                                        it.id in selection ||
+                                                            it.groupId in groups
+                                                    }
+                                                val visibleBounds =
+                                                    bounds.filterValues {
+                                                        it.height > 0f &&
+                                                            it.width > 0f
+                                                    }
+                                                if (remaining.none { it.id in visibleBounds }) return@drop
+                                                val targets = remaining.groupBy { it.groupId ?: it.id }.values
+                                                val targetCenters =
+                                                    targets
+                                                        .mapNotNull { cards ->
+                                                            val visible = cards.mapNotNull { visibleBounds[it.id] }
+                                                            if (visible.isEmpty()) {
+                                                                null
+                                                            } else {
+                                                                cards.first().id to
+                                                                    (
+                                                                        (
+                                                                            visible.minOf { it.top } +
+                                                                                visible.maxOf { it.bottom }
+                                                                        ) /
+                                                                            2f
+                                                                    )
+                                                            }
+                                                        }.toMap()
+                                                val destination =
+                                                    clipboardDropTarget(
+                                                        targets.map { it.first().id },
+                                                        targetCenters,
+                                                        dragY,
+                                                    )
+                                                controller.move(
+                                                    selection,
+                                                    destination,
                                                 )
-                                            controller.move(
-                                                selection,
-                                                destination,
-                                            )
-                                        }) { change, _ -> change.consume() }
+                                            },
+                                        ) { change, _ -> change.consume() }
                                     },
                             )
                         }

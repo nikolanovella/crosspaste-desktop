@@ -46,7 +46,8 @@ internal fun BluetoothDevicesCard() {
     var selectedId by remember { mutableStateOf(config.bluetoothPeerId) }
     val selected = candidates.firstOrNull { it.appInstanceId == selectedId } ?: candidates.firstOrNull()
     var address by remember(selected?.appInstanceId) {
-        mutableStateOf(config.bluetoothPeerAddress.takeIf { selected?.appInstanceId == config.bluetoothPeerId }.orEmpty())
+        val savedAddress = config.bluetoothPeerAddress.takeIf { selected?.appInstanceId == config.bluetoothPeerId }
+        mutableStateOf(savedAddress.orEmpty())
     }
     var menuOpen by remember { mutableStateOf(false) }
 

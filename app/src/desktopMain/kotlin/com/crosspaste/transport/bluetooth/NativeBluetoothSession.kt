@@ -20,7 +20,15 @@ import kotlin.time.Duration.Companion.seconds
 internal enum class BluetoothNativeState { CONNECTING, LISTENING, CONNECTED, DISCONNECTED }
 
 /** Owns only the helper process it starts. No system service or other app is touched. */
-internal class BluetoothServiceUnavailableException : IOException("CrossPaste Bluetooth service is unreachable. On the Mac, select this Windows PC and wait for the Bluetooth listener.")
+internal class BluetoothListenerSetupException(
+    message: String,
+) : IOException(message)
+
+internal class BluetoothServiceUnavailableException :
+    IOException(
+        "CrossPaste Bluetooth service is unreachable. " +
+            "On the Mac, select this Windows PC and wait for the Bluetooth listener.",
+    )
 
 internal class NativeBluetoothSession internal constructor(
     private val process: Process,
@@ -75,11 +83,17 @@ internal class NativeBluetoothSession internal constructor(
         when {
             status == "BT_CONNECTED" -> connected.complete(Unit)
             status == "BT_LISTENING" -> publish(BluetoothNativeState.LISTENING)
-            status == "BT_CONNECT_FAILED:10049" -> connected.completeExceptionally(BluetoothServiceUnavailableException())
+            status == "BT_CONNECT_FAILED:10049" -> {
+                connected.completeExceptionally(BluetoothServiceUnavailableException())
+            }
             status == "BT_SERVICE_FAILED" ->
-                connected.completeExceptionally(IOException("Bluetooth service publication failed"))
+                connected.completeExceptionally(
+                    BluetoothListenerSetupException("Bluetooth service publication failed"),
+                )
             status == "BT_LISTENER_FAILED" ->
-                connected.completeExceptionally(IOException("Bluetooth listener registration failed"))
+                connected.completeExceptionally(
+                    BluetoothListenerSetupException("Bluetooth listener registration failed"),
+                )
             status.startsWith("BT_") && (status.contains("FAILED") || status.contains("UNAVAILABLE")) -> {
                 // Never relay arbitrary native stderr, device addresses or payload.
                 val code = status.substringAfter(':', "").toIntOrNull()
