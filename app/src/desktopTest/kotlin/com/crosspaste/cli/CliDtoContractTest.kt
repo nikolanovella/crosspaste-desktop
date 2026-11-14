@@ -143,6 +143,7 @@ class CliDtoContractTest {
                 "port",
                 "allowSend",
                 "allowReceive",
+                "bluetoothRouteRegistered",
             ),
             fieldsOf(encoded),
         )

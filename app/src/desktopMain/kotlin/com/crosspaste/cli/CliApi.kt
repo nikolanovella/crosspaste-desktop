@@ -95,6 +95,7 @@ data class CliDeviceDto(
     val port: Int,
     val allowSend: Boolean,
     val allowReceive: Boolean,
+    val bluetoothRouteRegistered: Boolean = false,
 )
 
 @Serializable

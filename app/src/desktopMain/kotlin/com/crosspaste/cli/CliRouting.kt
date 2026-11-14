@@ -26,6 +26,7 @@ import com.crosspaste.path.UserDataPathProvider
 import com.crosspaste.sync.NearbyDeviceManager
 import com.crosspaste.sync.SyncManager
 import com.crosspaste.task.TaskSubmitter
+import com.crosspaste.utils.PeerTransportRoutes
 import com.crosspaste.utils.getFileUtils
 import com.crosspaste.utils.ioDispatcher
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -558,6 +559,7 @@ private suspend fun handleDevices(
                 port = info.port,
                 allowSend = info.allowSend,
                 allowReceive = info.allowReceive,
+                bluetoothRouteRegistered = PeerTransportRoutes.hasRoute(info.appInstanceId),
             )
         }
     call.respond(devices)

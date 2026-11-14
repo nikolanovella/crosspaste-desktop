@@ -652,6 +652,27 @@ class CliRoutingTest {
         }
     }
 
+    @Test
+    fun `devices reports Bluetooth only for the registered peer`() {
+        val fixture = Fixture()
+        coEvery { fixture.syncRuntimeInfoDao.getAllSyncRuntimeInfos() } returns
+            listOf(pairedDevice("bluetooth-peer"), pairedDevice("network-peer"))
+        val lease = com.crosspaste.utils.PeerTransportRoutes.registerLoopback("bluetooth-peer", 13130)
+        try {
+            withCliRouting(fixture) {
+                val response = client.get("/cli/devices")
+                assertEquals(HttpStatusCode.OK, response.status)
+                val devices = json.decodeFromString<List<CliDeviceDto>>(response.bodyAsText())
+                assertEquals(
+                    mapOf("bluetooth-peer" to true, "network-peer" to false),
+                    devices.associate { it.appInstanceId to it.bluetoothRouteRegistered },
+                )
+            }
+        } finally {
+            lease.release()
+        }
+    }
+
     private fun pairedDevice(appInstanceId: String) =
         SyncRuntimeInfo(
             appInstanceId = appInstanceId,
