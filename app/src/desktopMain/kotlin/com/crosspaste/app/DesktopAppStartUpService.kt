@@ -150,7 +150,16 @@ class WindowsAppStartUpService(
     private val appExePath =
         appPathProvider.pasteAppPath
             .resolve("bin")
-            .resolve("CrossPaste.exe")
+            .resolve("CrossPaste.exe").let { packagedLauncher ->
+                val workbenchLauncher = appPathProvider.pasteAppPath.parent?.resolve("CrossPaste.exe")
+                if (packagedLauncher.toFile().isFile || workbenchLauncher == null ||
+                    !workbenchLauncher.toFile().isFile
+                ) {
+                    packagedLauncher
+                } else {
+                    workbenchLauncher
+                }
+            }
 
     private val microsoftStartup = "explorer.exe shell:appsFolder\\$PFN!$AppName"
 
@@ -158,7 +167,7 @@ class WindowsAppStartUpService(
         if (isMicrosoftStore) {
             microsoftStartup
         } else {
-            appExePath.toString()
+            "\"$appExePath\""
         }
 
     override fun followConfig() {
