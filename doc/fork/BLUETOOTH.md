@@ -5,8 +5,8 @@ CrossPaste theme, paired-device list, encrypted protocol and clipboard database.
 It does not create a separate clipboard. Recording and shared-paste participation
 keep their existing independent switches.
 
-Bluetooth is **off by default**. Opening Devices does not start a radio connection
-or publish a service. The link is not added to startup. Leaving Devices after
+CrossPaste starts with no Bluetooth connection. Opening Devices does not start a
+radio connection or publish a service. The link is not added to startup. Leaving Devices after
 connecting keeps the link running; Disconnect or quitting CrossPaste stops it.
 
 ## Windows and Mac setup
@@ -45,6 +45,27 @@ Each platform builds its adapter with CMake. CI stages it under
 The app resolves it from `compose.application.resources.dir`. macOS distributions
 include the Bluetooth permission purpose text; their embedded helper is signed
 alongside the app. No helper or radio connection is launched by CI self-tests.
+
+To build locally on the Mac, check out the same revision as the Windows build.
+From the repository root, with JDK 21, CMake and the Xcode command-line tools:
+
+```sh
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+case "$(uname -m)" in
+  arm64) arch=arm64 ;;
+  x86_64) arch=x64 ;;
+  *) exit 1 ;;
+esac
+cmake -S native/bluetooth -B build/native-bluetooth -DCMAKE_BUILD_TYPE=Release
+cmake --build build/native-bluetooth --config Release
+ctest --test-dir build/native-bluetooth --build-config Release --output-on-failure
+mkdir -p "app/resources/macos-$arch/bluetooth"
+install -m 755 build/native-bluetooth/MacosBluetoothTransport "app/resources/macos-$arch/bluetooth/"
+./gradlew :app:createDistributable -PappEnv=BETA -PworkbenchFork=true
+```
+
+The app bundle is under `app/build/compose/binaries/main/app`. Name any archive
+with its OS and architecture, such as `CrossPaste-Workbench-macOS-AppleSilicon.zip`.
 
 The relay binds only IPv4 loopback and can open only the configured local
 CrossPaste server port. It carries requests in both directions across one link,
