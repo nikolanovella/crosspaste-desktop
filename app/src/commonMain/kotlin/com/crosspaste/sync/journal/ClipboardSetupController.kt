@@ -66,17 +66,19 @@ class ClipboardSetupController(
 
     private suspend fun action(
         failure: String,
+        background: Boolean = false,
         block: suspend () -> Unit,
     ) {
         if (!mutex.tryLock()) return
-        mutableState.value = mutableState.value.copy(busy = true, error = null)
+        val previousError = mutableState.value.error
+        mutableState.value = mutableState.value.copy(busy = true, error = if (background) previousError else null)
         try {
             block()
             refreshLocal()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            mutableState.value = mutableState.value.copy(error = failure)
+            mutableState.value = mutableState.value.copy(error = if (background) previousError ?: failure else failure)
             try {
                 refreshLocal()
             } catch (_: Exception) {
@@ -89,7 +91,7 @@ class ClipboardSetupController(
     }
 
     suspend fun refresh() =
-        action("Couldn't refresh shared clipboard status.") {
+        action("Couldn't refresh shared clipboard status.", background = true) {
             refreshLocal()
             for ((peer, pending) in offers.toMap()) {
                 if (connections[peer] != ClipboardInvitationState.PENDING) continue

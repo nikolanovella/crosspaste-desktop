@@ -78,6 +78,21 @@ private class SetupFixture(
 
 class ClipboardSetupControllerTest {
     @Test
+    fun `polling preserves a failed join until the next explicit action`() =
+        runTest {
+            val controller = SetupFixture(clipboardPeerFixture()).controller()
+            controller.create()
+            controller.connect("unpaired-device")
+            val message = assertNotNull(controller.state.value.error)
+
+            controller.refresh()
+            assertEquals(message, controller.state.value.error)
+
+            controller.create()
+            assertNull(controller.state.value.error)
+        }
+
+    @Test
     fun `refresh is read only and explicit setup creates one clipboard using current recording choice`() =
         runTest {
             val f = SetupFixture(clipboardPeerFixture())
