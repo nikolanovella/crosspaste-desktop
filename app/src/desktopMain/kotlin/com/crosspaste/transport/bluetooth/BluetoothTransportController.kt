@@ -33,7 +33,7 @@ import kotlin.time.Duration.Companion.seconds
 
 internal data class BluetoothConnectionState(
     val active: Boolean = false,
-    val message: String = "Bluetooth is off",
+    val message: String = "No CrossPaste Bluetooth connection",
     val peerId: String? = null,
 )
 
