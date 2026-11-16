@@ -24,6 +24,7 @@ private class SetupFixture(
     val serializer = SecureKeyPairSerializer()
     var now = 0L
     var dropAcknowledgement = false
+    var peerUnavailable = false
     val a = ClipboardInvitationService(local, "a", peers.aStore, serializer, { now })
     val b = ClipboardInvitationService(remote, "b", peers.bStore, serializer, { now })
 
@@ -36,7 +37,10 @@ private class SetupFixture(
             ClipboardPeerClient(
                 peers.a,
                 object : ClipboardPeerWire {
-                    override suspend fun challenge(peer: String): ControlChallenge = peers.b.issue("a")
+                    override suspend fun challenge(peer: String): ControlChallenge {
+                        if (peerUnavailable) throw ClipboardPeerUnavailableException()
+                        return peers.b.issue("a")
+                    }
 
                     override suspend fun post(
                         peer: String,
@@ -77,6 +81,21 @@ private class SetupFixture(
 }
 
 class ClipboardSetupControllerTest {
+    @Test
+    fun `setup explains when the peer does not offer shared clipboard service`() =
+        runTest {
+            val fixture = SetupFixture(clipboardPeerFixture())
+            val controller = fixture.controller()
+            controller.create()
+            fixture.peerUnavailable = true
+
+            controller.connect("b")
+            controller.refresh()
+
+            assertEquals(ClipboardPeerUnavailableException().message, controller.state.value.error)
+            assertEquals(listOf("a"), controller.state.value.members)
+        }
+
     @Test
     fun `polling preserves a failed join until the next explicit action`() =
         runTest {

@@ -77,8 +77,9 @@ class ClipboardSetupController(
             refreshLocal()
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
-            mutableState.value = mutableState.value.copy(error = if (background) previousError ?: failure else failure)
+        } catch (e: Exception) {
+            val message = if (e is ClipboardPeerUnavailableException) e.message ?: failure else failure
+            mutableState.value = mutableState.value.copy(error = if (background) previousError ?: message else message)
             try {
                 refreshLocal()
             } catch (_: Exception) {
